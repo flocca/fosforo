@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bar, dailyTotals, formatDuration, lastDays, lastWeeks, progressBar } from '../../src/lib/reading';
+import { dailyRows, weeklyRows } from '../../src/lib/reading';
 import { formatDate, localToday } from '../../src/lib/dates';
 import type { Book } from '../../src/lib/schema';
 
@@ -51,5 +52,12 @@ describe('reading', () => {
   it('date', () => {
     expect(formatDate('2026-11-02')).toBe('02/11/2026');
     expect(localToday(new Date(2026, 10, 3, 23, 59))).toBe('2026-11-03');
+  });
+});
+
+describe('righe del ritmo', () => {
+  it('stanno in 34 colonne anche con 99 h 59 min', () => {
+    const t = new Map([['2026-11-10', 99 * 3600 + 59 * 60], ['2026-10-20', 60]]);
+    for (const r of [...dailyRows(t, '2026-11-10', 14), ...weeklyRows(t, '2026-11-10', 12)]) expect(r.length).toBe(34);
   });
 });

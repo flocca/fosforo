@@ -74,7 +74,7 @@ describe('renderPath', () => {
     expect(l).toContain('02/11/2026  Termination Shock (Neal Stephenson)');
     expect(spans(b).some((s) => s.cmd === 'cat /lettura/termination-shock')).toBe(true);
     expect(spans(b).some((s) => s.cmd === 'cat /lettura/il-nome-della-rosa')).toBe(true);
-    for (const x of l.filter((r) => /^(lun|mar|mer|gio|ven|sab|dom|sett) \d\d\/\d\d /.test(r) || r.includes('░'))) expect(x.length).toBeLessThanOrEqual(40);
+    for (const x of l.filter((r) => /^(lun|mar|mer|gio|ven|sab|dom|dal) \d\d\/\d\d /.test(r) || r.includes('░'))) expect(x.length).toBeLessThanOrEqual(34);
     expect(l.some((x) => x.includes('15 min'))).toBe(true);
   });
   it('lettura senza obiettivo né giorni', () => {
@@ -119,5 +119,13 @@ describe('markdownToBlocks', () => {
     const s = spans(md('[x](https://a.b/c) <https://d.e>'));
     expect(s[0]).toMatchObject({ text: 'x', href: 'https://a.b/c' });
     expect(s[2]).toMatchObject({ href: 'https://d.e' });
+  });
+});
+
+describe('immagini dei post', () => {
+  it('images arriva alle dimensioni del blocco immagine', () => {
+    const s = buildStoreFrom({ songs: [], books: [], pages: [], site: store.site, posts: [{ slug: 'p', body: '![a](foto.jpg)', data: { title: 'P', date: '2026-01-01', draft: false }, images: { foto: { width: 640, height: 480 } } }] });
+    const img = renderPath('post/p', s)!.find((x) => x.type === 'image') as any;
+    expect(img).toMatchObject({ width: 640, height: 480 });
   });
 });

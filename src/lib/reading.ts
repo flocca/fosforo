@@ -52,11 +52,11 @@ export function formatDuration(seconds: number): string {
 }
 
 const WEEKDAYS = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
-const BAR_WIDTH = 12;
+const BAR_WIDTH = 11;
 const row = (label: string, seconds: number, max: number) =>
-  `${label}  ${bar(seconds, max, BAR_WIDTH)} ${(seconds > 0 ? formatDuration(seconds) : '-').padStart(10)}`;
+  `${label}  ${bar(seconds, max, BAR_WIDTH)} ${(seconds > 0 ? formatDuration(seconds) : '-').padStart(11)}`;
 
-// Righe di testo del ritmo di lettura (massimo 34 colonne).
+// Righe di testo del ritmo di lettura (34 colonne esatte).
 export function dailyRows(totals: Map<string, number>, endDate: string, n: number): string[] {
   const days = lastDays(totals, endDate, n);
   const max = Math.max(...days.map((d) => d.seconds));
@@ -66,5 +66,5 @@ export function dailyRows(totals: Map<string, number>, endDate: string, n: numbe
 export function weeklyRows(totals: Map<string, number>, endDate: string, n: number): string[] {
   const weeks = lastWeeks(totals, endDate, n);
   const max = Math.max(...weeks.map((w) => w.seconds));
-  return weeks.map((w) => row(`sett ${formatDate(w.weekStart).slice(0, 5)}`, w.seconds, max));
+  return weeks.map((w) => row(`dal ${formatDate(w.weekStart).slice(0, 5)}`, w.seconds, max));
 }

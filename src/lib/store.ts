@@ -120,23 +120,19 @@ export function buildStoreFrom(input: StoreInput): Store {
   };
 }
 
-const MAX_IMAGE_WIDTH = 640;
-
 // Dimensioni delle immagini accanto a un post dopo l'elaborazione della build
 // (scala di grigi, larghezza massima 640, proporzioni mantenute), per nome senza estensione.
-async function postImageSizes(dir: string): Promise<ImageSizes> {
+export async function postImageSizes(dir: string): Promise<ImageSizes> {
   const { readdir } = await import('node:fs/promises');
   const { join } = await import('node:path');
-  const { default: sharp } = await import('sharp');
+  const { imageSize } = await import('./image-size');
   const { contentDir } = await import('./content-dir');
   const folder = join(contentDir(), 'post', dir);
   const sizes: ImageSizes = {};
   for (const file of await readdir(folder).catch(() => [] as string[])) {
     if (!/\.(jpe?g|png|webp|gif|avif|tiff?)$/i.test(file)) continue;
-    const { width, height } = await sharp(join(folder, file)).metadata();
-    if (!width || !height) continue;
-    const w = Math.min(width, MAX_IMAGE_WIDTH);
-    sizes[file.replace(/\.[^.]+$/, '')] = { width: w, height: Math.round((height * w) / width) };
+    const size = await imageSize(join(folder, file));
+    if (size) sizes[file.replace(/\.[^.]+$/, '')] = size;
   }
   return sizes;
 }
