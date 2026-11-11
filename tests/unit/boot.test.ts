@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decideStart, runBoot } from '../../src/client/boot';
+import { decideStart, runBoot, welcomeSpans } from '../../src/client/boot';
 
 describe('decideStart', () => {
   const today = '2026-11-11';
@@ -106,5 +106,25 @@ describe('runBoot', () => {
     const total = clock.calls.reduce((a, b) => a + b, 0);
     expect(total).toBeGreaterThanOrEqual(800);
     expect(total).toBeLessThanOrEqual(1200);
+  });
+});
+
+describe('welcomeSpans', () => {
+  it('rende cliccabile la parola help', () => {
+    expect(welcomeSpans('Benvenuto. Scrivi help oppure clicca un nome.')).toEqual([
+      { text: 'Benvenuto. Scrivi ' },
+      { text: 'help', cmd: 'help' },
+      { text: ' oppure clicca un nome.' },
+    ]);
+    expect(welcomeSpans('Benvenuto. Tocca un nome oppure scrivi help.')).toEqual([
+      { text: 'Benvenuto. Tocca un nome oppure scrivi ' },
+      { text: 'help', cmd: 'help' },
+      { text: '.' },
+    ]);
+  });
+
+  it('senza help il testo resta semplice', () => {
+    expect(welcomeSpans('Ciao.')).toEqual([{ text: 'Ciao.' }]);
+    expect(welcomeSpans('helpdesk aperto')).toEqual([{ text: 'helpdesk aperto' }]);
   });
 });

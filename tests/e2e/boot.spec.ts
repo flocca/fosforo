@@ -11,6 +11,22 @@ const powerButton = (page: Page) => page.getByRole('button', { name: 'Accendi' }
 const output = (page: Page) => page.locator('#screen .term-out');
 const romLines = (page: Page, text: string) => output(page).locator('.term-line', { hasText: text });
 
+const welcomeLines = (page: Page) => output(page).locator('.term-line', { hasText: WELCOME });
+
+// Conta i boot: ognuno scrive fosforo.ultimoBoot all'inizio.
+async function countBoots(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { bootWrites: number };
+    w.bootWrites = 0;
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === 'fosforo.ultimoBoot') w.bootWrites++;
+      return set.call(this, k, v);
+    };
+  });
+}
+const bootWrites = (page: Page) => page.evaluate(() => (window as unknown as { bootWrites: number }).bootWrites);
+
 // Il giorno del visitatore lo decide l'orologio della pagina.
 async function today(page: Page, lastBoot?: string) {
   await page.clock.install({ time: new Date('2026-11-11T10:00:00') });
@@ -30,6 +46,7 @@ test('la home parte spenta, con l\'interruttore e senza prompt', async ({ page }
 
 test('Review Focus 4: doppio clic, un solo boot; un tasto salta alla fine', async ({ page }) => {
   await today(page, '2026-11-10');
+  await countBoots(page);
   await page.goto('/');
   await powerButton(page).dblclick();
   await expect(page.locator('.led')).toHaveClass(/is-on/);
@@ -41,8 +58,35 @@ test('Review Focus 4: doppio clic, un solo boot; un tasto salta alla fine', asyn
   await expect(output(page)).toContainText(SECOND_ROM);
   await expect(output(page)).toContainText('LOADING CANZONE .... 10/11/2026');
   await expect(prompt(page)).toBeFocused();
-  await expect(page.locator('#screen a[data-cmd]', { hasText: /^canzoni\/$/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accendi' })).toHaveCount(0);
+  // oltre la durata di un boot completo: nessun secondo boot in coda
+  await page.clock.runFor(8000);
+  await expect(welcomeLines(page)).toHaveCount(1);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  expect(await bootWrites(page)).toBe(1);
+  // dopo il benvenuto solo il prompt, con help cliccabile
+  await expect(output(page).locator('a[data-cmd]')).toHaveCount(1);
+  await output(page).locator('a[data-cmd="help"]').click();
+  await expect(output(page)).toContainText('questo elenco');
+});
+
+test('Review Focus 4: doppio clic sullo schermo spento, un solo boot e niente salto', async ({ page }) => {
+  await today(page, '2026-11-10');
+  await countBoots(page);
+  await page.goto('/');
+  await expect(powerButton(page)).toBeEnabled();
+  // orologio fermo: il tempo avanza solo con runFor
+  await page.clock.pauseAt(new Date('2026-11-11T10:00:10'));
+  await page.locator('.screen').dblclick();
+  // il secondo clic non salta il boot: dopo lampo e attesa c'è solo la prima riga
+  await page.clock.runFor(1450);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  await expect(romLines(page, SECOND_ROM)).toHaveCount(0);
+  await expect(welcomeLines(page)).toHaveCount(0);
+  await page.clock.runFor(8000);
+  await expect(welcomeLines(page)).toHaveCount(1);
+  await expect(output(page)).toContainText(SECOND_ROM);
+  expect(await bootWrites(page)).toBe(1);
 });
 
 test('INVIO a monitor spento accende', async ({ page }) => {
@@ -101,6 +145,18 @@ test('reboot: schermo spento, boot completo dalla radice anche nello stesso gior
   await page.keyboard.press('x');
   await expect(output(page)).toContainText(WELCOME);
   await expect(page.locator('#screen .term-prompt')).toContainText('guest@example.com ~ $');
+});
+
+test('reboot con il movimento ridotto: avvio rapido', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await today(page, '2026-11-10');
+  await page.goto('/chi-sono');
+  await expect(prompt(page)).toBeFocused();
+  await page.keyboard.type('reboot');
+  await page.keyboard.press('Enter');
+  await expect(output(page)).toContainText(WELCOME, { timeout: 2000 });
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  await expect(romLines(page, SECOND_ROM)).toHaveCount(0);
 });
 
 test('Review Focus 2: senza storage la home si accende lo stesso', async ({ page }) => {

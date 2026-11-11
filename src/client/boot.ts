@@ -1,4 +1,5 @@
 // Accensione: scelta fra boot completo e avvio rapido, e sequenza delle righe della ROM.
+import type { Span } from '../lib/blocks';
 import type { SiteConfig } from '../lib/schema';
 
 export type StartKind = 'power-cold' | 'power-warm' | 'direct';
@@ -83,4 +84,16 @@ export function runBoot(opts: {
   });
 
   return { done, skip: finish };
+}
+
+// La parola "help" del benvenuto si può cliccare; senza "help" il testo resta semplice.
+export function welcomeSpans(text: string): Span[] {
+  const m = /\bhelp\b/.exec(text);
+  if (!m) return [{ text }];
+  const spans: Span[] = [];
+  if (m.index) spans.push({ text: text.slice(0, m.index) });
+  spans.push({ text: 'help', cmd: 'help' });
+  const rest = text.slice(m.index + 4);
+  if (rest) spans.push({ text: rest });
+  return spans;
 }

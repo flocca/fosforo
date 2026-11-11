@@ -4,7 +4,7 @@ import { localToday } from '../lib/dates';
 import { findByPath, type FsNode } from '../lib/fs-tree';
 import { promptCommand } from '../lib/level0';
 import type { SiteConfig } from '../lib/schema';
-import { decideStart, runBoot } from './boot';
+import { decideStart, runBoot, welcomeSpans } from './boot';
 import { complete } from './complete';
 import { createHistory } from './history';
 import { createRouter, currentPath } from './router';
@@ -152,7 +152,8 @@ async function main() {
         if (indicator) indicator.textContent = `suono: ${m ? 'spento' : 'acceso'}`;
       },
     },
-    // Schermo spento 400 ms, poi boot completo qualunque sia la data, dalla radice.
+    // Schermo spento 400 ms, poi boot completo qualunque sia la data, dalla radice
+    // (con il movimento ridotto l'avvio rapido).
     async reboot() {
       booting?.skip();
       power = 'booting';
@@ -163,7 +164,7 @@ async function main() {
       await sleep(REBOOT_OFF_MS);
       term.setCwd('');
       router.navigate('', 'push');
-      await boot('cold');
+      await boot(reducedMotion() ? 'warm' : 'cold');
     },
     diskSeek: (n) => audio.diskSeek(n),
   };
@@ -228,11 +229,10 @@ async function main() {
     booting = null;
     const touch = matchMedia('(pointer: coarse)').matches;
     const welcome = (touch && site.boot.welcomeTouch) || site.boot.welcome;
-    screen.print([{ type: 'blank' }, { type: 'line', spans: [{ text: welcome }] }, { type: 'blank' }]);
+    screen.print([{ type: 'blank' }, { type: 'line', spans: welcomeSpans(welcome) }, { type: 'blank' }]);
     power = 'on';
     screen.showPrompt(true);
     if (isDesktop()) screen.focus();
-    await runEcho('ls');
   }
 
   // Primo clic sull'interruttore (o INVIO, o clic sullo schermo spento): una sola accensione.
