@@ -401,6 +401,11 @@ async function main() {
       window.history.replaceState({ path: currentPath() }, '');
       return;
     }
+    // si va a capo con le colonne di Fira Mono: se il font non è ancora arrivato si aspetta
+    // (al massimo un secondo), altrimenti il testo andrebbe a capo con le misure del font di riserva
+    // (`fonts.ready` non basta: prima del primo disegno il font non è ancora richiesto)
+    await Promise.race([document.fonts?.load('400 1em "Fira Mono"', 'M').catch(() => {}), sleep(1000)]);
+    screen.remeasure();
     await showPath(path);
   }
 

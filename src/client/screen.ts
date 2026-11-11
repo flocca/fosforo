@@ -9,6 +9,8 @@ const MIN_COLS = 20;
 export type Screen = {
   input: HTMLInputElement;
   cols(): number;
+  /** Ricalcola le colonne (dopo che il font è arrivato). */
+  remeasure(): void;
   print(blocks: Block[]): void;
   printRom(text: string): void; // riga della ROM: mai a capo, ritagliata a destra
   echo(command: string): void; // riga del prompt con il comando, come se fosse stato scritto
@@ -149,6 +151,7 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
   return {
     input,
     cols: () => cols,
+    remeasure: measure,
     print(blocks) {
       append(wrapBlocks(blocks, cols));
     },
