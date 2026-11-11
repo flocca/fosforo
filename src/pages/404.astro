@@ -1,0 +1,30 @@
+---
+import Monitor from '../layouts/Monitor.astro';
+import { buildStore } from '../lib/store';
+
+const store = await buildStore();
+const { host, user } = store.site;
+---
+<Monitor
+  title={`Non trovato · ${host}`}
+  description={`Percorso inesistente su ${host}.`}
+  canonical="/404"
+  ogPath="/og/home.png"
+  page="404"
+  noindex
+>
+  <pre class="term"><span class="dim">{user}@{host} ~ $ </span>cat <span id="missing-path">questo percorso</span>
+cat: <span id="missing-path-err">questo percorso</span>: file o cartella inesistente
+Prova <a id="back" href="/">ls /</a></pre>
+  <script is:inline>
+    (function () {
+      var p = location.pathname;
+      var back = p.indexOf('/lettura/') === 0 ? '/lettura' : '/';
+      document.getElementById('missing-path').textContent = p;
+      document.getElementById('missing-path-err').textContent = p;
+      var a = document.getElementById('back');
+      a.setAttribute('href', back);
+      a.textContent = 'ls ' + back;
+    })();
+  </script>
+</Monitor>

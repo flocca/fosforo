@@ -1,0 +1,49 @@
+---
+// Pagina del terminale: HTML di livello 0 con tutti i meta per i crawler.
+type Props = {
+  title: string;
+  description: string;
+  canonical: string; // percorso con barra iniziale
+  ogPath: string;
+  page: 'home' | 'item' | '404';
+  path?: string;
+  aliasTarget?: string;
+  noindex?: boolean;
+};
+const { title, description, canonical, ogPath, page, path, aliasTarget, noindex } = Astro.props;
+const abs = (p: string) => new URL(p, Astro.site).href;
+---
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={abs(canonical)} />
+    <meta property="og:image" content={abs(ogPath)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="it_IT" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style is:inline>
+      html { background: #050806; color: #33ff66; }
+      body { margin: 0; padding: 1rem; font: 16px/1.25 ui-monospace, Menlo, 'DejaVu Sans Mono', monospace; }
+      .term { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
+      .term a { color: inherit; }
+      .dim { opacity: 0.6; }
+      .bold { font-weight: bold; }
+      .inverse { background: #33ff66; color: #050806; }
+      .ph-img { display: block; }
+      .ph-img img { max-width: 100%; height: auto; }
+    </style>
+  </head>
+  <body data-page={page} data-path={path} data-alias-target={aliasTarget}>
+    <main id="screen"><slot /></main>
+  </body>
+</html>

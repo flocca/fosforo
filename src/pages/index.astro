@@ -1,0 +1,18 @@
+---
+import Monitor from '../layouts/Monitor.astro';
+import { buildStore } from '../lib/store';
+import { renderPath } from '../lib/render';
+import { level0Html, promptCommand } from '../lib/level0';
+import { pageMeta } from '../lib/static-paths';
+
+const store = await buildStore();
+const meta = pageMeta('', store)!;
+const { host, user, boot } = store.site;
+const html = level0Html(
+  [{ text: `${user}@${host} ~ $ `, style: 'dim' }, { text: promptCommand('', true) }],
+  [{ type: 'line', spans: [{ text: boot.welcome }] }, { type: 'blank' }, ...(renderPath('', store) ?? [])],
+);
+---
+<Monitor {...meta} path="">
+  <pre class="term" set:html={html} />
+</Monitor>

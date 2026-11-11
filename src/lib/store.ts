@@ -137,7 +137,16 @@ export async function postImageSizes(dir: string): Promise<ImageSizes> {
   return sizes;
 }
 
-export async function buildStore(): Promise<Store> {
+// Una sola costruzione per processo: in build ogni pagina e ogni endpoint chiedono lo store.
+let cached: Promise<Store> | undefined;
+export function buildStore(): Promise<Store> {
+  // In sviluppo i contenuti cambiano a server acceso: niente cache.
+  if (!import.meta.env?.PROD) return buildStoreUncached();
+  cached ??= buildStoreUncached();
+  return cached;
+}
+
+async function buildStoreUncached(): Promise<Store> {
   // Import dinamico: `astro:content` esiste solo dentro Astro, non nei test unitari.
   const { getCollection } = await import('astro:content');
   const [songs, books, notes, goals, posts, pages, sites] = await Promise.all([
