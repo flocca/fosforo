@@ -1,0 +1,18 @@
+{
+  "id": "0123456789abcdef0123456789abcdef",
+  "slug": "termination-shock",
+  "title": "Termination Shock",
+  "authors": ["Neal Stephenson"],
+  "pages": 720,
+  "progress": 1,
+  "status": "finito",
+  "startedAt": "2026-10-20T21:00:00+02:00",
+  "finishedAt": "2026-11-02T22:10:00+01:00",
+  "lastReadAt": "2026-11-02T22:10:00+01:00",
+  "totalSeconds": 5400,
+  "days": [
+    { "date": "2026-10-20", "seconds": 1800 },
+    { "date": "2026-10-28", "seconds": 1500 },
+    { "date": "2026-11-02", "seconds": 2100 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "fedcba9876543210fedcba9876543210",
+  "slug": "il-nome-della-rosa",
+  "title": "Il nome della rosa",
+  "authors": ["Umberto Eco"],
+  "pages": 520,
+  "progress": 0.42,
+  "status": "in-corso",
+  "startedAt": "2026-11-03T20:30:00+01:00",
+  "lastReadAt": "2026-11-10T22:00:00+01:00",
+  "totalSeconds": 2700,
+  "days": [
+    { "date": "2026-11-02", "seconds": 600 },
+    { "date": "2026-11-07", "seconds": 1200 },
+    { "date": "2026-11-10", "seconds": 900 }
+  ]
+}

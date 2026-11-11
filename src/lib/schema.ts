@@ -1,0 +1,99 @@
+import { z } from 'astro/zod';
+import { plainText } from './text';
+
+// Il YAML non quotato (date: 2026-11-10) viene letto come Date a mezzanotte UTC:
+// lo si riporta alla stringa YYYY-MM-DD, che è il formato dei contenuti.
+const date = z.preprocess(
+  (v) => (v instanceof Date && !Number.isNaN(v.getTime()) ? v.toISOString().slice(0, 10) : v),
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data attesa nel formato YYYY-MM-DD'),
+);
+const instant = z.iso.datetime({ offset: true, error: 'Istante ISO 8601 con offset atteso (es. 2026-11-02T22:10:00+01:00)' });
+const kebab = z.string().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, 'Atteso kebab-case minuscolo');
+const nonNegInt = z.number().int().nonnegative();
+
+export const songSchema = z
+  .object({
+    date,
+    title: plainText,
+    artist: plainText,
+    album: plainText.optional(),
+    appleTrackId: z.string().regex(/^\d+$/, 'appleTrackId deve essere numerico'),
+    links: z
+      .object({
+        appleMusic: z.url(),
+        spotify: z.url().optional(),
+        youtube: z.url().optional(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const bookSchema = z
+  .object({
+    id: z.string().regex(/^[0-9a-f]{32}$/, 'id atteso: 32 caratteri esadecimali'),
+    slug: kebab,
+    title: plainText,
+    authors: z.array(plainText),
+    pages: nonNegInt,
+    progress: z.number().min(0).max(1),
+    status: z.enum(['in-corso', 'finito']),
+    startedAt: instant,
+    finishedAt: instant.optional(),
+    lastReadAt: instant,
+    totalSeconds: nonNegInt,
+    days: z.array(z.object({ date, seconds: nonNegInt }).strict()),
+  })
+  .strict()
+  .refine((b) => (b.status === 'finito') === (b.finishedAt !== undefined), {
+    message: 'finishedAt deve essere presente se e solo se status è "finito"',
+    path: ['finishedAt'],
+  });
+
+export const goalSchema = z
+  .object({ year: nonNegInt, target: nonNegInt, finished: nonNegInt })
+  .strict();
+
+export const postSchema = z
+  .object({
+    title: plainText,
+    date,
+    description: plainText.optional(),
+    draft: z.boolean().default(false),
+  })
+  .strict();
+
+export const pageSchema = z
+  .object({ title: plainText, order: z.number().optional() })
+  .strict();
+
+export const noteSchema = z.object({}).strict();
+
+export const siteSchema = z
+  .object({
+    host: z.string().min(1),
+    user: z.string().min(1),
+    links: z.array(z.object({ name: kebab, title: plainText, url: z.url() }).strict()),
+    boot: z
+      .object({
+        rom: z.array(
+          z
+            .object({
+              text: z.string(),
+              pause: z.number().nonnegative(),
+              disk: z.number().nonnegative().optional(),
+            })
+            .strict(),
+        ),
+        welcome: plainText,
+        welcomeTouch: plainText,
+      })
+      .strict(),
+  })
+  .strict();
+
+export type Song = z.infer<typeof songSchema>;
+export type Book = z.infer<typeof bookSchema>;
+export type Goal = z.infer<typeof goalSchema>;
+export type Post = z.infer<typeof postSchema>;
+export type Page = z.infer<typeof pageSchema>;
+export type SiteConfig = z.infer<typeof siteSchema>;
