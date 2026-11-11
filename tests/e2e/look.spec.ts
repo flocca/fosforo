@@ -48,11 +48,7 @@ test.describe('telefono', () => {
 
   test('home con il monitor spento', async ({ page }) => {
     await page.goto('/');
-    // L'accensione arriva con il Task 8: qui lo stato spento si imposta a mano.
-    await page.evaluate(() => {
-      document.querySelector('.screen')!.classList.add('is-off');
-      document.querySelector('.led')!.classList.remove('is-on');
-    });
+    await expect(page.locator('.screen')).toHaveClass(/is-off/);
     await settle(page);
     await expect(page).toHaveScreenshot('home-telefono-spento.png', { animations: 'disabled' });
   });

@@ -27,7 +27,7 @@ const { site } = await buildStore();
 const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().toUpperCase();
 ---
 <!doctype html>
-<html lang="it" data-fosfori="verde">
+<html lang="it" data-fosfori="verde" data-page={page}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,11 +45,15 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
     <meta property="og:locale" content="it_IT" />
     <meta name="twitter:card" content="summary_large_image" />
     <script is:inline>
-      // Fosfori scelti dal visitatore, prima del primo disegno (senza storage: verde).
+      // Prima del primo disegno: i fosfori scelti dal visitatore (stessa chiave e valori di
+      // src/client/prefs.ts; senza storage: verde) e, con JavaScript, la home parte spenta
+      // (il client sostituisce power-pending con .screen.is-off).
       (function () {
+        var d = document.documentElement;
+        if (d.dataset.page === 'home') d.classList.add('power-pending');
         try {
           var v = localStorage.getItem('fosforo.fosfori');
-          if (v === 'verde' || v === 'ambra' || v === 'bianco') document.documentElement.dataset.fosfori = v;
+          if (v === 'verde' || v === 'ambra' || v === 'bianco') d.dataset.fosfori = v;
         } catch (e) {}
       })();
     </script>
@@ -67,8 +71,10 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
       <div class="monitor-panel">
         <span class="monitor-label" aria-hidden="true">{label}</span>
         <span class="sound-indicator">suono: acceso</span>
+        <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled></button>
         <span class="led is-on" aria-hidden="true"></span>
-        <button type="button" class="power-button" aria-label="Accendi"></button>
+        <!-- senza JavaScript i tasti restano disabilitati: lo schermo mostra già il livello 0 -->
+        <button type="button" class="power-button" aria-label="Accendi" disabled></button>
       </div>
     </div>
     <script>

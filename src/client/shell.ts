@@ -15,7 +15,7 @@ export interface Terminal {
   phosphor: Phosphor; // fosfori attuali, per `fosfori` senza argomento
   setPhosphor(p: Phosphor): void;
   sound: { muted: boolean; setMuted(m: boolean): void };
-  reboot(): void;
+  reboot(): void | Promise<void>; // finisce quando il nuovo boot è concluso
   diskSeek(n: number): void;
 }
 
@@ -132,8 +132,8 @@ export function createShell(root: FsNode, term: Terminal) {
       return true;
     },
 
-    reboot() {
-      term.reboot();
+    async reboot() {
+      await term.reboot();
       return true;
     },
   };

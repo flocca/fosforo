@@ -13,6 +13,7 @@ export type Screen = {
   echo(command: string): void; // riga del prompt con il comando, come se fosse stato scritto
   clear(): void;
   setPrompt(label: string): void;
+  showPrompt(show: boolean): void; // nascosto durante il boot
   focus(): void;
   onCommand(cb: (cmd: string) => void): void;
 };
@@ -161,6 +162,9 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
     },
     setPrompt(text) {
       label.textContent = text;
+    },
+    showPrompt(show) {
+      promptLine.hidden = !show;
     },
     focus() {
       input.focus({ preventScroll: true });

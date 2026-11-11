@@ -34,7 +34,8 @@ test.describe('telefono a 320 px', () => {
         cw: document.documentElement.clientWidth,
       }));
       expect(sw).toBeLessThanOrEqual(cw);
-      const button = await page.getByRole('button', { name: 'Accendi' }).boundingBox();
+      // l'interruttore c'è sempre; si chiama "Accendi" solo sulla home spenta
+      const button = await page.locator('.power-button').boundingBox();
       const screen = await page.locator('.screen').boundingBox();
       expect(button!.y).toBeGreaterThan(screen!.y + screen!.height);
     });
