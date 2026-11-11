@@ -1,8 +1,15 @@
 // Aspetto CRT: confronti visivi. Le baseline si generano dopo l'approvazione di Giacomo,
 // nel container di Playwright; fuori da lì il test gira solo con PW_VISUAL=1.
+import { existsSync } from 'node:fs';
 import { devices, expect, test, type Page } from '@playwright/test';
 
 test.skip(!process.env.PW_VISUAL, 'confronti visivi solo con PW_VISUAL=1');
+// Finché le baseline non sono nel repo il confronto non ha nulla con cui confrontare:
+// salta invece di fallire. Dopo averle generate e committate, i test girano.
+test.skip(
+  !existsSync(new URL('./look.spec.ts-snapshots/', import.meta.url)),
+  'baseline visive non ancora generate (si creano dopo l\'approvazione dell\'aspetto)',
+);
 
 const PHOSPHORS = ['verde', 'ambra', 'bianco'] as const;
 
