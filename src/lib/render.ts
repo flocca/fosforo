@@ -7,6 +7,10 @@ import { formatDate } from './dates';
 import { dailyRows, dailyTotals, formatDuration, progressBar, weeklyRows } from './reading';
 import type { Book } from './schema';
 
+// Markdown dei contenuti: i link interni a una cartella diventano `cd` + `ls`.
+const md = (body: string, store: Store, imageBase: string, sizes?: Parameters<typeof markdownToBlocks>[1]['sizes']): Block[] =>
+  markdownToBlocks(body, { imageBase, sizes, isDir: (p) => findByPath(store.root, p)?.type === 'dir' });
+
 const line = (...spans: Span[]): Block => ({ type: 'line', spans });
 const text = (t: string, style?: Span['style']): Span => (style ? { text: t, style } : { text: t });
 const blank: Block = { type: 'blank' };
@@ -34,7 +38,7 @@ function rhythm(totals: Map<string, number>, end: string, withWeeks: boolean): B
   return out;
 }
 
-function song(item: Extract<Item, { kind: 'song' }>): Block[] {
+function song(item: Extract<Item, { kind: 'song' }>, store: Store): Block[] {
   const d = item.data;
   const out: Block[] = [
     line(text(`── ${formatDate(d.date)} ──`, 'dim')),
@@ -57,7 +61,7 @@ function song(item: Extract<Item, { kind: 'song' }>): Block[] {
     spans.push({ text: label, href });
   }
   out.push(line(...spans));
-  if (item.body.trim()) out.push(blank, ...markdownToBlocks(item.body, { imageBase: '/_img/canzoni' }));
+  if (item.body.trim()) out.push(blank, ...md(item.body, store, '/_img/canzoni'));
   return out;
 }
 
@@ -74,7 +78,7 @@ function book(item: Extract<Item, { kind: 'book' }>, store: Store): Block[] {
   out.push(line(text(`tempo totale: ${formatDuration(b.totalSeconds)}`)));
   const end = rhythmEnd(books(store));
   if (end) out.push(blank, ...rhythm(dailyTotals([b]), end, false));
-  if (item.note?.trim()) out.push(blank, ...markdownToBlocks(item.note, { imageBase: '/_img/lettura' }));
+  if (item.note?.trim()) out.push(blank, ...md(item.note, store, '/_img/lettura'));
   return out;
 }
 
@@ -123,7 +127,7 @@ export function renderPath(path: string, store: Store): Block[] | null {
   if (!item) return null;
   switch (item.kind) {
     case 'song':
-      return song(item);
+      return song(item, store);
     case 'book':
       return book(item, store);
     case 'post':
@@ -131,9 +135,9 @@ export function renderPath(path: string, store: Store): Block[] | null {
         line(text(item.data.title, 'bold')),
         line(text(formatDate(item.data.date), 'dim')),
         blank,
-        ...markdownToBlocks(item.body, { imageBase: `/_img/${item.path}`, sizes: item.images }),
+        ...md(item.body, store, `/_img/${item.path}`, item.images),
       ];
     case 'page':
-      return [line(text(item.data.title, 'bold')), blank, ...markdownToBlocks(item.body, { imageBase: `/_img/${item.path}` })];
+      return [line(text(item.data.title, 'bold')), blank, ...md(item.body, store, `/_img/${item.path}`)];
   }
 }

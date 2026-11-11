@@ -39,6 +39,8 @@ La cartella dei contenuti coincide con il terminale e con gli URL, senza slash f
 
 Ogni pagina ha un gemello JSON in `/_fs/` (`/_fs/index.json` per l'albero, `/_fs/<percorso>.json` per i nodi, `/_fs/root.json` per la radice) che il terminale legge per navigare. Le immagini dei post e i fotogrammi delle canzoni sono in `/_img/`, le immagini per le anteprime social in `/og/`. Un percorso inesistente mostra la pagina "non trovato" del terminale, con HTTP 404 e un link per tornare indietro (`lettura/` per `/lettura/*`, la home altrove).
 
+Nel markdown un link interno diventa un comando del terminale: `[canzoni](/canzoni)` esegue `cd /canzoni && ls` (una cartella), `[chi sono](/chi-sono)` esegue `cat /chi-sono`. I file in `/_fs/` vanno serviti con `Cache-Control: no-cache`: se un link profondo non è nell'indice, il terminale lo riscarica una volta, ma un indice vecchio in cache resta vecchio per tutte le altre pagine.
+
 ### Canzoni
 
 `canzoni/AAAA-MM-GG.md`: una canzone al giorno. Frontmatter, in quest'ordine:
@@ -118,7 +120,7 @@ links:
     url: https://owlcavelabs.it
 boot:
   rom:
-    - text: "MEMORY TEST ........ 65536 BYTES OK"
+    - text: "MEMORY TEST ....... 65536 BYTES OK"
       pause: 700           # millisecondi dopo la riga
       disk: 1              # facoltativo, numero di scatti della testina
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."

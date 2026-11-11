@@ -37,8 +37,11 @@ function spanNode(s: Span): Node {
   } else if (s.href) {
     const a = document.createElement('a');
     a.href = s.href;
-    a.target = '_blank';
-    a.rel = 'noopener';
+    // mailto: apre il programma di posta, non una scheda vuota
+    if (!s.href.startsWith('mailto:')) {
+      a.target = '_blank';
+      a.rel = 'noopener';
+    }
     a.append(node);
     node = a;
   }

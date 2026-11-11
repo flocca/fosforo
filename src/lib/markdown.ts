@@ -4,7 +4,9 @@ import type { Block, Span } from './blocks';
 
 type Node = ReturnType<typeof fromMarkdown>['children'][number] | { type: string; [k: string]: any };
 type Sizes = Record<string, { width: number; height: number }>;
-type Opts = { imageBase: string; sizes?: Sizes };
+// `isDir`: dice se un percorso interno (senza barra iniziale) è una cartella dell'albero,
+// così un link a una cartella diventa `cd /x && ls` invece di `cat /x`.
+type Opts = { imageBase: string; sizes?: Sizes; isDir?: (path: string) => boolean };
 type Style = Span['style'];
 
 const MAX_WIDTH = 640;
@@ -15,6 +17,13 @@ const stemOf = (url: string) => {
   const file = decodeURIComponent(url.split(/[?#]/)[0]).split('/').pop() ?? url;
   return file.replace(/\.[^.]+$/, '');
 };
+
+// Link interno -> comando del terminale: cartella `cd /x && ls`, altrimenti `cat /x`.
+function internalCmd(url: string, opts: Opts): string {
+  const path = url.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
+  if (opts.isDir?.(path)) return path ? `cd /${path} && ls` : 'cd / && ls';
+  return `cat ${url}`;
+}
 
 const plain = (n: any): string =>
   typeof n.value === 'string' ? n.value : (n.children ?? []).map(plain).join('');
@@ -49,7 +58,7 @@ function inline(nodes: Node[], opts: Opts, base: Style = undefined): Block[] {
           break;
         case 'link': {
           const url: string = n.url;
-          const extra: Partial<Span> = url.startsWith('/') && !url.startsWith('//') ? { cmd: `cat ${url}` } : { href: url };
+          const extra: Partial<Span> = url.startsWith('/') && !url.startsWith('//') ? { cmd: internalCmd(url, opts) } : { href: url };
           const before = spans.length;
           walk(n.children, style);
           for (let i = before; i < spans.length; i++) Object.assign(spans[i], extra);

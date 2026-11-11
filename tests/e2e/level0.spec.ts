@@ -21,7 +21,7 @@ test('la home linka le sezioni', async ({ page }) => {
 
 test('canzone-del-giorno ha il canonical sulla canzone più recente', async ({ page }) => {
   await page.goto('/canzone-del-giorno');
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', '/canzoni/2026-11-10');
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://example.com/canzoni/2026-11-10');
   await expect(page.locator('body')).toHaveAttribute('data-alias-target', 'canzoni/2026-11-10');
 });
 

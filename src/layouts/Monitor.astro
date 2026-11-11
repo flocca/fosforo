@@ -33,7 +33,7 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical} />
+    <link rel="canonical" href={abs(canonical)} />
     {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:type" content="website" />
     <meta property="og:title" content={title} />
@@ -47,10 +47,16 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
     <script is:inline>
       // Prima del primo disegno: i fosfori scelti dal visitatore (stessa chiave e valori di
       // src/client/prefs.ts; senza storage: verde) e, con JavaScript, la home parte spenta
-      // (il client sostituisce power-pending con .screen.is-off).
+      // (il client sostituisce power-pending con .screen.is-off; senza client resta il livello 0).
       (function () {
         var d = document.documentElement;
-        if (d.dataset.page === 'home') d.classList.add('power-pending');
+        if (d.dataset.page === 'home') {
+          d.classList.add('power-pending');
+          // il modulo del client gira prima di `load`: se non è partito, lo schermo si riaccende
+          addEventListener('load', function () {
+            if (!window.fosforoClient) d.classList.remove('power-pending');
+          });
+        }
         try {
           var v = localStorage.getItem('fosforo.fosfori');
           if (v === 'verde' || v === 'ambra' || v === 'bianco') d.dataset.fosfori = v;

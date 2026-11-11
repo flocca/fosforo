@@ -92,6 +92,16 @@ function initPhosphorButton() {
   });
 }
 
+// Il percorso di ritorno di un indirizzo inesistente, come nella pagina 404 statica:
+// `lettura/` sotto /lettura/*, altrimenti la radice.
+const backFor = (path: string) => (path.startsWith('lettura/') ? 'lettura' : '');
+
+async function loadIndex(cache?: RequestCache): Promise<SiteIndex> {
+  const res = await fetch('/_fs/index.json', cache ? { cache } : undefined);
+  if (!res.ok) throw new Error(`index.json: ${res.status}`);
+  return res.json();
+}
+
 async function main() {
   initPhosphorButton();
   initSoundButton();
@@ -104,9 +114,7 @@ async function main() {
   }
   let index: SiteIndex;
   try {
-    const res = await fetch('/_fs/index.json');
-    if (!res.ok) throw new Error(`index.json: ${res.status}`);
-    index = await res.json();
+    index = await loadIndex();
   } catch (e) {
     // senza indice resta la pagina statica, che funziona da sola: si riaccende lo schermo
     console.error('terminale non avviato', e);
@@ -116,7 +124,9 @@ async function main() {
 
   const { root, site } = index;
   const page = document.body.dataset.page ?? 'item';
-  const screen = createScreen(pre, { keep: page === '404' });
+  // La pagina di un elemento tiene il livello 0 finché il gemello JSON non è arrivato:
+  // senza rete resta il contenuto statico, con il prompt sotto.
+  const screen = createScreen(pre, { keep: page !== 'home' });
   const titles = new Map<string, string>();
   const cache = new Map<string, Block[]>();
 
@@ -234,15 +244,36 @@ async function main() {
     await shell.run(cmd);
   };
 
+  // L'indice può essere vecchio (cache del browser): un percorso che manca, o un alias che
+  // punta altrove rispetto alla pagina statica, fa riscaricare l'indice una volta sola.
+  let refreshed = false;
+  async function nodeFor(path: string, aliasTarget?: string): Promise<FsNode | null> {
+    const node = findByPath(root, path);
+    const stale = !node || (aliasTarget !== undefined && node.type === 'alias' && node.target !== aliasTarget);
+    if (!stale || refreshed) return node;
+    refreshed = true;
+    try {
+      const fresh = await loadIndex('no-cache');
+      // stesso oggetto: la shell e il completamento usano questa radice
+      Object.assign(root, fresh.root);
+      index.latestSong = fresh.latestSong;
+      cache.clear();
+    } catch (e) {
+      console.error('indice non aggiornato', e);
+    }
+    return findByPath(root, path);
+  }
+
   // Mostra l'elemento di un indirizzo come se fosse stato aperto dalla radice; la cartella
   // attuale diventa quella dell'elemento (la cartella stessa per una cartella).
   async function showPath(path: string) {
+    const node = await nodeFor(path);
     screen.clear();
     term.setCwd('');
-    const node = findByPath(root, path);
     await runEcho(promptCommand(path, node?.type === 'dir'));
     if (!node) {
-      screen.print([{ type: 'line', spans: [{ text: 'Prova ' }, { text: 'ls /', cmd: 'cd / && ls' }] }]);
+      const back = backFor(path);
+      screen.print([{ type: 'line', spans: [{ text: 'Prova ' }, { text: `ls /${back}`, cmd: `cd /${back} && ls` }] }]);
       return;
     }
     const shown = node.type === 'alias' && node.target ? node.target : node.path;
@@ -346,12 +377,32 @@ async function main() {
     window.history.replaceState({ path: currentPath() }, '');
   }
 
+  // Link profondo: la pagina statica esiste, quindi l'elemento c'è. Se l'albero non lo
+  // conosce o il gemello JSON non arriva, resta il livello 0 e sotto compare il prompt.
+  async function startItem() {
+    const path = document.body.dataset.path ?? currentPath();
+    const aliasTarget = document.body.dataset.aliasTarget;
+    const node = await nodeFor(path, aliasTarget);
+    if (node?.type === 'link') return showPath(path);
+    const shown = node?.type === 'alias' ? node.target : node?.path;
+    // un alias che punta ancora altrove (indice non aggiornato) mostra la pagina statica
+    const agrees = !(node?.type === 'alias' && aliasTarget !== undefined && shown !== aliasTarget);
+    const twin = node && shown !== undefined && agrees ? await term.fetchBlocks(shown) : null;
+    if (!twin) {
+      if (node && node.type !== 'dir' && shown !== undefined) term.setCwd(parentOf(shown));
+      else if (node?.type === 'dir') term.setCwd(node.path);
+      window.history.replaceState({ path: currentPath() }, '');
+      return;
+    }
+    await showPath(path);
+  }
+
   const start = () => {
     if (page === 'home') return router.replay(startHome);
     setScreenOn(true);
     setPowerButton(false);
     if (page === '404') return startNotFound();
-    return router.replay(() => showPath(document.body.dataset.path ?? currentPath()));
+    return router.replay(startItem);
   };
   await exec(start);
 
@@ -394,4 +445,9 @@ function setInput(screen: Screen, value: string) {
   screen.input.setSelectionRange(value.length, value.length);
 }
 
-main();
+// Lo script in testa alla pagina toglie power-pending al `load` se il client non è partito.
+(window as { fosforoClient?: boolean }).fosforoClient = true;
+main().catch((e) => {
+  console.error('terminale non avviato', e);
+  document.documentElement.classList.remove('power-pending');
+});

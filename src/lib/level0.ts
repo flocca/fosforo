@@ -22,7 +22,9 @@ function spanHtml(s: Span): string {
     const url = cmdToUrl(s.cmd);
     if (url) html = `<a href="${escapeHtml(url)}">${html}</a>`;
   } else if (s.href) {
-    html = `<a href="${escapeHtml(s.href)}" rel="noopener" target="_blank">${html}</a>`;
+    // mailto: apre il programma di posta, non una scheda vuota
+    const blank = s.href.startsWith('mailto:') ? '' : ' rel="noopener" target="_blank"';
+    html = `<a href="${escapeHtml(s.href)}"${blank}>${html}</a>`;
   }
   return html;
 }

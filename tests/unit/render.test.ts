@@ -115,6 +115,20 @@ describe('markdownToBlocks', () => {
     expect(last.map((s) => s.style)).toEqual(['bold', undefined, 'bold', undefined, 'inverse']);
     expect((b[8] as any).spans[0]).toMatchObject({ text: '> ', style: 'dim' });
   });
+  it('link interni: cartella con cd e ls, file con cat', () => {
+    const isDir = (p: string) => p === '' || p === 'canzoni';
+    const s = spans(markdownToBlocks('[a](/canzoni) [b](/canzoni/) [c](/chi-sono) [d](/)', { imageBase: '/x', isDir }));
+    expect(s.filter((x) => x.cmd).map((x) => x.cmd)).toEqual(['cd /canzoni && ls', 'cd /canzoni && ls', 'cat /chi-sono', 'cd / && ls']);
+  });
+  it('senza albero un link interno resta cat', () => {
+    expect(spans(md('[a](/canzoni)'))[0].cmd).toBe('cat /canzoni');
+  });
+  it('renderPath risolve i link alle cartelle sull\'albero', () => {
+    const books = [read('lettura/termination-shock.json')].map((d) => ({ slug: d.slug, data: d }));
+    const s = buildStoreFrom({ songs: [], books, posts: [], site: store.site, pages: [{ slug: 'p', body: '[letture](/lettura) e [me](/p)', data: { title: 'P' } }] });
+    const cmds = spans(renderPath('p', s)!).filter((x) => x.cmd).map((x) => x.cmd);
+    expect(cmds).toEqual(['cd /lettura && ls', 'cat /p']);
+  });
   it('link esterni con href', () => {
     const s = spans(md('[x](https://a.b/c) <https://d.e>'));
     expect(s[0]).toMatchObject({ text: 'x', href: 'https://a.b/c' });

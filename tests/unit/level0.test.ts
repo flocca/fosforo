@@ -26,6 +26,10 @@ describe('level0Html', () => {
     expect(html).toContain('<a href="https://e.it/?a=1&amp;b=2" rel="noopener" target="_blank">y</a>');
     expect(html).toContain('<span class="ph-img"><img src="/_img/a.png" alt="a &quot;b&quot;"');
   });
+  it('mailto: senza target _blank', () => {
+    const html = level0Html([], [{ type: 'line', spans: [{ text: 'scrivimi', href: 'mailto:a@b.it' }] }]);
+    expect(html).toContain('<a href="mailto:a@b.it">scrivimi</a>');
+  });
   it('il comando mostrato dipende dal tipo di nodo', () => {
     expect(promptCommand('', true)).toBe('ls');
     expect(promptCommand('canzoni', true)).toBe('cd /canzoni && ls');

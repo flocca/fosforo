@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 test.use({ viewport: { width: 1280, height: 800 } });
 
 const FIRST_ROM = 'FOSFORO VT-78  ROM v1.3';
-const SECOND_ROM = 'MEMORY TEST ........ 65536 BYTES OK';
+const SECOND_ROM = 'MEMORY TEST ....... 65536 BYTES OK';
 const WELCOME = 'Benvenuto. Scrivi help oppure clicca un nome.';
 const prompt = (page: Page) => page.getByRole('textbox', { name: 'Comando' });
 const powerButton = (page: Page) => page.getByRole('button', { name: 'Accendi' });
@@ -328,6 +328,14 @@ test.describe('senza JavaScript', () => {
     await expect(page.getByRole('button', { name: 'Accendi' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Cambia colore dei fosfori' })).toBeDisabled();
   });
+});
+
+test('se il client non si carica la home mostra il livello 0', async ({ page }) => {
+  await page.route('**/_astro/*.js', (route) => route.abort());
+  await page.goto('/');
+  await expect(page.locator('html')).not.toHaveClass(/power-pending/);
+  await expect(page.locator('#screen a[href="/chi-sono"]')).toBeVisible();
+  await expect(page.locator('#screen a[href="/canzoni"]')).toBeVisible();
 });
 
 test('spia dell\'interruttore: accesa solo dopo l\'accensione, anche durante il boot', async ({ page }) => {

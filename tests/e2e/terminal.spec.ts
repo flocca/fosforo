@@ -110,6 +110,57 @@ test('404: resta il messaggio, il link riporta nel terminale e compare il prompt
   await expect(output(page)).toContainText('$ cd /lettura && ls');
 });
 
+test('indietro su un indirizzo inesistente sotto /lettura riporta a lettura/', async ({ page }) => {
+  await ready(page, '/lettura/libro-che-non-esiste');
+  await page.locator('#back').click();
+  await expect(page).toHaveURL(/\/lettura$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/lettura\/libro-che-non-esiste$/);
+  const back = page.locator('#screen .term-out a[data-cmd]').last();
+  await expect(back).toHaveText('ls /lettura');
+  await expect(back).toHaveAttribute('data-cmd', 'cd /lettura && ls');
+});
+
+test('un link markdown a una cartella apre la cartella', async ({ page }) => {
+  await ready(page, '/lettura/termination-shock');
+  const link = page.locator('#screen .term-out a', { hasText: /^lettura$/ });
+  await expect(link).toHaveAttribute('data-cmd', 'cd /lettura && ls');
+  await link.click();
+  await expect(page).toHaveURL(/\/lettura$/);
+  await expect(output(page)).toContainText('$ cd /lettura && ls');
+  await expect(output(page)).not.toContainText('è una cartella');
+  await expect(page.locator('#screen .term-prompt')).toContainText('~/lettura $');
+});
+
+test('indice vecchio in cache: il link profondo a una canzone nuova la mostra', async ({ page }) => {
+  let calls = 0;
+  await page.route('**/_fs/index.json', async (route) => {
+    calls++;
+    const res = await route.fetch();
+    const json = await res.json();
+    if (calls === 1) {
+      // l'indice di ieri: senza la canzone più recente
+      const canzoni = json.root.children.find((c: { name: string }) => c.name === 'canzoni');
+      canzoni.children = canzoni.children.filter((c: { name: string }) => c.name !== NEWEST);
+    }
+    await route.fulfill({ response: res, json });
+  });
+  await ready(page, `/canzoni/${NEWEST}`);
+  await expect(output(page)).toContainText(`$ cat /canzoni/${NEWEST}`);
+  await expect(output(page)).toContainText('Un giorno qualunque');
+  await expect(output(page)).not.toContainText('inesistente');
+  expect(calls).toBe(2);
+});
+
+test('link profondo senza gemello JSON: resta il livello 0 e compare il prompt', async ({ page }) => {
+  await page.route('**/_fs/chi-sono.json', (route) => route.abort());
+  await ready(page, '/chi-sono');
+  await expect(output(page)).toContainText('$ cat /chi-sono');
+  await expect(output(page)).toContainText('Sono una persona di esempio.');
+  await expect(output(page)).not.toContainText('impossibile leggere');
+  await expect(page.locator('#screen .term-prompt')).toBeVisible();
+});
+
 test('axe: nessuna violazione grave in /chi-sono', async ({ page }) => {
   await ready(page, '/chi-sono');
   // @axe-core/playwright porta un suo playwright-core (1.65) con tipi diversi da quelli fissati (1.64.1)

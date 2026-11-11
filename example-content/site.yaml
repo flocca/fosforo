@@ -8,7 +8,7 @@ boot:
   rom:
     - text: "FOSFORO VT-78  ROM v1.3"
       pause: 300
-    - text: "MEMORY TEST ........ 65536 BYTES OK"
+    - text: "MEMORY TEST ....... 65536 BYTES OK"
       pause: 700
       disk: 1
     - text: "DISK 0 ............. READY"
