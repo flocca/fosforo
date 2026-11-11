@@ -6,7 +6,7 @@ import type { FsNode } from './fs-tree';
 export type Item =
   | { kind: 'song'; path: string; data: Song; body: string }
   | { kind: 'book'; path: string; data: Book; note?: string }
-  | { kind: 'post'; path: string; data: Post; body: string }
+  | { kind: 'post'; path: string; data: Post; body: string; images?: Record<string, { width: number; height: number }> }
   | { kind: 'page'; path: string; data: Page; body: string };
 
 export type Store = {
@@ -18,13 +18,14 @@ export type Store = {
 };
 
 type Entry<T> = { slug: string; data: T; body: string };
+type ImageSizes = Record<string, { width: number; height: number }>;
 
 export type StoreInput = {
   songs: Entry<Song>[];
   books: { slug: string; data: Book }[];
   bookNotes?: { slug: string; body: string }[];
   goal?: Goal;
-  posts: Entry<Post>[];
+  posts: (Entry<Post> & { images?: ImageSizes })[];
   pages: Entry<Page>[];
   site: SiteConfig;
 };
@@ -88,7 +89,7 @@ export function buildStoreFrom(input: StoreInput): Store {
     for (const p of posts) {
       assertMarkdownBody(p.body, `post/${p.slug}/index.md`);
       const path = `post/${p.slug}`;
-      items.set(path, { kind: 'post', path, data: p.data, body: p.body });
+      items.set(path, { kind: 'post', path, data: p.data, body: p.body, ...(p.images ? { images: p.images } : {}) });
       postNodes.push({ name: p.slug, path, type: 'file', title: p.data.title });
     }
     rootChildren.push({ name: 'post', path: 'post', type: 'dir', children: postNodes });
@@ -119,6 +120,27 @@ export function buildStoreFrom(input: StoreInput): Store {
   };
 }
 
+const MAX_IMAGE_WIDTH = 640;
+
+// Dimensioni delle immagini accanto a un post dopo l'elaborazione della build
+// (scala di grigi, larghezza massima 640, proporzioni mantenute), per nome senza estensione.
+async function postImageSizes(dir: string): Promise<ImageSizes> {
+  const { readdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { default: sharp } = await import('sharp');
+  const { contentDir } = await import('./content-dir');
+  const folder = join(contentDir(), 'post', dir);
+  const sizes: ImageSizes = {};
+  for (const file of await readdir(folder).catch(() => [] as string[])) {
+    if (!/\.(jpe?g|png|webp|gif|avif|tiff?)$/i.test(file)) continue;
+    const { width, height } = await sharp(join(folder, file)).metadata();
+    if (!width || !height) continue;
+    const w = Math.min(width, MAX_IMAGE_WIDTH);
+    sizes[file.replace(/\.[^.]+$/, '')] = { width: w, height: Math.round((height * w) / width) };
+  }
+  return sizes;
+}
+
 export async function buildStore(): Promise<Store> {
   // Import dinamico: `astro:content` esiste solo dentro Astro, non nei test unitari.
   const { getCollection } = await import('astro:content');
@@ -138,7 +160,12 @@ export async function buildStore(): Promise<Store> {
     books: books.map((e) => ({ slug: e.data.slug, data: e.data })),
     bookNotes: notes.map((e) => ({ slug: stem(e.id), body: e.body ?? '' })),
     goal: goals[0]?.data,
-    posts: posts.map((e) => ({ slug: e.id.replace(/^post\//, ''), data: e.data, body: e.body ?? '' })),
+    posts: await Promise.all(
+      posts.map(async (e) => {
+        const slug = e.id.replace(/^post\//, '');
+        return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug) };
+      }),
+    ),
     pages: pages.map((e) => ({ slug: e.id, data: e.data, body: e.body ?? '' })),
     site,
   });
