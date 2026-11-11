@@ -46,3 +46,12 @@ export function promptCommand(path: string, isDir: boolean): string {
   if (path === '') return 'ls';
   return isDir ? `cd /${path} && ls` : `cat /${path}`;
 }
+
+// Blocchi della home al livello 0: senza JavaScript nessuno può scrivere, quindi la riga di benvenuto è
+// `welcomeStatic` (se assente, nessuna riga), mai `welcome`.
+export function homeBlocks(boot: { welcomeStatic?: string }, rest: Block[]): Block[] {
+  const welcome: Block[] = boot.welcomeStatic
+    ? [{ type: 'line', spans: [{ text: boot.welcomeStatic }] }, { type: 'blank' }]
+    : [];
+  return [...welcome, ...rest];
+}

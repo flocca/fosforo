@@ -86,6 +86,7 @@ export const siteSchema = z
         ),
         welcome: plainText,
         welcomeTouch: plainText,
+        welcomeStatic: plainText.optional(),
       })
       .strict(),
   })

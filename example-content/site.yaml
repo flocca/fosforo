@@ -25,3 +25,4 @@ boot:
       pause: 1300
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
+  welcomeStatic: "Benvenuto. Clicca un nome."

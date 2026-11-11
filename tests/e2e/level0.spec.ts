@@ -14,6 +14,8 @@ test('la pagina di una canzone ha artista e link ad Apple Music', async ({ page 
 test('la home linka le sezioni', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).toHaveAttribute('data-page', 'home');
+  await expect(page.locator('#screen')).toContainText('Benvenuto. Clicca un nome.');
+  await expect(page.locator('#screen')).not.toContainText('Scrivi help');
   for (const href of ['/canzoni', '/lettura', '/chi-sono']) {
     await expect(page.locator(`#screen a[href="${href}"]`)).toHaveCount(1);
   }

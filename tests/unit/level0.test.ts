@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { cmdToUrl, level0Html, promptCommand } from '../../src/lib/level0';
+import { cmdToUrl, homeBlocks, level0Html, promptCommand } from '../../src/lib/level0';
+import { siteSchema } from '../../src/lib/schema';
 import { ogImage, songImage } from '../../src/lib/cards';
 
 describe('cmdToUrl', () => {
@@ -51,5 +52,26 @@ describe('immagini', () => {
     }
     const og = await sharp(await ogImage(t, thumb)).metadata();
     expect([og.width, og.height]).toEqual([1200, 630]);
+  });
+});
+
+describe('homeBlocks', () => {
+  const rest = [{ type: 'line' as const, spans: [{ text: 'x' }] }];
+  it('usa welcomeStatic come riga di benvenuto', () => {
+    const b = homeBlocks({ welcomeStatic: 'Clicca un nome.' }, rest);
+    expect(b[0]).toEqual({ type: 'line', spans: [{ text: 'Clicca un nome.' }] });
+    expect(b[1]).toEqual({ type: 'blank' });
+    expect(b.slice(2)).toEqual(rest);
+  });
+  it('senza welcomeStatic non mostra nessun benvenuto', () => {
+    expect(homeBlocks({}, rest)).toEqual(rest);
+  });
+});
+
+describe('siteSchema boot.welcomeStatic', () => {
+  const base = { host: 'h', user: 'u', links: [], boot: { rom: [], welcome: 'w', welcomeTouch: 'wt' } };
+  it('accetta il campo presente o assente', () => {
+    expect(siteSchema.safeParse(base).success).toBe(true);
+    expect(siteSchema.safeParse({ ...base, boot: { ...base.boot, welcomeStatic: 's' } }).success).toBe(true);
   });
 });

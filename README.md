@@ -125,9 +125,10 @@ boot:
       disk: 1              # facoltativo, numero di scatti della testina
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
+  welcomeStatic: "Benvenuto. Clicca un nome."   # facoltativo
 ```
 
-Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot, `welcomeTouch` al posto suo sui dispositivi touch.
+Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot, `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
 
 ## Test
 
