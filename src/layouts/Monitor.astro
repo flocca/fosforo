@@ -1,5 +1,14 @@
 ---
 // Pagina del terminale: HTML di livello 0 con tutti i meta per i crawler.
+import '@fontsource/fira-mono/latin-400.css';
+import '@fontsource/fira-mono/latin-ext-400.css';
+import '@fontsource/fira-mono/symbols2-400.css';
+import '@fontsource/fira-mono/latin-700.css';
+import '@fontsource/fira-mono/latin-ext-700.css';
+import '@fontsource/fira-mono/symbols2-700.css';
+import '../styles/crt.css';
+import { buildStore } from '../lib/store';
+
 type Props = {
   title: string;
   description: string;
@@ -10,11 +19,15 @@ type Props = {
   aliasTarget?: string;
   noindex?: boolean;
 };
+
 const { title, description, canonical, ogPath, page, path, aliasTarget, noindex } = Astro.props;
 const abs = (p: string) => new URL(p, Astro.site).href;
+// Targhetta del monitor: la prima riga della ROM fino al primo doppio spazio ("FOSFORO VT-78").
+const { site } = await buildStore();
+const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().toUpperCase();
 ---
 <!doctype html>
-<html lang="it">
+<html lang="it" data-fosfori="verde">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -31,19 +44,32 @@ const abs = (p: string) => new URL(p, Astro.site).href;
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="it_IT" />
     <meta name="twitter:card" content="summary_large_image" />
-    <style is:inline>
-      html { background: #050806; color: #33ff66; }
-      body { margin: 0; padding: 1rem; font: 16px/1.25 ui-monospace, Menlo, 'DejaVu Sans Mono', monospace; }
-      .term { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-      .term a { color: inherit; }
-      .dim { opacity: 0.6; }
-      .bold { font-weight: bold; }
-      .inverse { background: #33ff66; color: #050806; }
-      .ph-img { display: block; }
-      .ph-img img { max-width: 100%; height: auto; }
-    </style>
+    <script is:inline>
+      // Fosfori scelti dal visitatore, prima del primo disegno (senza storage: verde).
+      (function () {
+        try {
+          var v = localStorage.getItem('fosforo.fosfori');
+          if (v === 'verde' || v === 'ambra' || v === 'bianco') document.documentElement.dataset.fosfori = v;
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body data-page={page} data-path={path} data-alias-target={aliasTarget}>
-    <main id="screen"><slot /></main>
+    <div class="monitor">
+      <div class="screen-well">
+        <div class="screen">
+          <main id="screen"><slot /></main>
+          <div class="chips" hidden></div>
+          <div class="screen-off" aria-hidden="true"></div>
+          <div class="screen-glass" aria-hidden="true"></div>
+        </div>
+      </div>
+      <div class="monitor-panel">
+        <span class="monitor-label" aria-hidden="true">{label}</span>
+        <span class="sound-indicator">suono: acceso</span>
+        <span class="led is-on" aria-hidden="true"></span>
+        <button type="button" class="power-button" aria-label="Accendi"></button>
+      </div>
+    </div>
   </body>
 </html>

@@ -1,0 +1,558 @@
+/* Aspetto CRT: monitor anni '70-'80 a fosfori, solo CSS.
+ *
+ * Contratto usato dai task successivi (client del terminale, accensione, chip):
+ * - html[data-fosfori="verde|ambra|bianco"] imposta --ph, --ph-dim, --ph-glow
+ * - .monitor, .screen (sovrapposizioni: scanline, vignettatura, sfarfallio)
+ * - .screen.is-off (spento), .screen.is-powering (lampo di accensione)
+ * - .term, .dim, .bold, .inverse, .ph-img
+ * - .power-button, .led.is-on, .sound-indicator, .chips
+ */
+
+/* ── fosfori ─────────────────────────────────────────────────────────────── */
+
+:root,
+html[data-fosfori='verde'] {
+  /* P1, verde */
+  --ph: #33ff66;
+  --ph-dim: #1a8033;
+  --ph-glow: rgba(51, 255, 102, 0.55);
+  --glass-0: #0b120d;
+  --glass-1: #050806;
+  --glass-2: #020302;
+}
+
+html[data-fosfori='ambra'] {
+  /* P3, ambra */
+  --ph: #ffb000;
+  --ph-dim: #805800;
+  --ph-glow: rgba(255, 176, 0, 0.55);
+  --glass-0: #140f06;
+  --glass-1: #080602;
+  --glass-2: #030201;
+}
+
+html[data-fosfori='bianco'] {
+  /* P4, bianco */
+  --ph: #e8f0ff;
+  --ph-dim: #6a7280;
+  --ph-glow: rgba(232, 240, 255, 0.45);
+  --glass-0: #0d0f12;
+  --glass-1: #060708;
+  --glass-2: #020203;
+}
+
+:root {
+  --room: #16130f;
+  --bezel-hi: #3b362d;
+  --bezel-lo: #25211b;
+  --bezel-ink: #8a8070;
+  --term-font: 'Fira Mono', ui-monospace, Menlo, 'DejaVu Sans Mono', monospace;
+  --fs: 15px;
+  --cols: 72;
+  --pad-y: 22px;
+  --pad-x: 26px;
+}
+
+@media (min-width: 1600px) and (min-height: 1000px) {
+  :root {
+    --fs: 17px;
+  }
+}
+
+/* ── stanza e mobile del monitor ─────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--room);
+  color: var(--ph);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-x: hidden;
+  /* luce della stanza: un alone tenue del fosforo sul muro dietro il monitor */
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 45%, color-mix(in srgb, var(--ph-glow) 12%, transparent), transparent 70%),
+    var(--room);
+}
+
+.monitor {
+  position: relative;
+  max-width: 100%;
+  padding: 34px 38px 0;
+  border-radius: 22px;
+  background: linear-gradient(#3b362d, #25211b);
+  box-shadow:
+    0 20px 60px #000a,
+    0 2px 0 #0008,
+    inset 0 2px 0 #5a5244,
+    inset 0 -3px 6px #0006;
+}
+
+/* incavo intorno al vetro: la plastica scende verso lo schermo */
+.screen-well {
+  padding: 6px;
+  border-radius: 34px / 28px;
+  background: linear-gradient(#1b1813, #2e2922);
+  box-shadow:
+    inset 0 3px 8px #000c,
+    0 1px 0 #5a524455;
+}
+
+/* ── schermo ─────────────────────────────────────────────────────────────── */
+
+.screen {
+  position: relative;
+  overflow: hidden;
+  width: min(calc(var(--cols) * 0.6 * var(--fs) + 2 * var(--pad-x)), calc(100vw - 48px - 88px));
+  height: clamp(320px, calc(100dvh - 170px), 540px);
+  border-radius: 28px / 22px;
+  font-size: var(--fs);
+  background: radial-gradient(ellipse at center, var(--glass-0) 0%, var(--glass-1) 70%, var(--glass-2) 100%);
+  box-shadow:
+    inset 0 0 60px #000,
+    inset 0 0 12px #000;
+}
+
+/* scanline */
+.screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px 3px);
+}
+
+/* vignettatura con sfarfallio */
+.screen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  animation: crt-flicker 0.12s infinite;
+}
+
+@keyframes crt-flicker {
+  0% {
+    opacity: 0.92;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.95;
+  }
+}
+
+/* vetro: riflesso della stanza e banda di scansione che scorre */
+.screen-glass {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse 70% 45% at 28% 12%, rgba(255, 255, 255, 0.06), transparent 70%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025), transparent 30%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    inset 0 18px 30px -20px rgba(255, 255, 255, 0.08);
+}
+
+.screen-glass::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30%;
+  height: 30%;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--ph) 4%, transparent) 50%, transparent);
+  animation: crt-roll 7s linear infinite;
+}
+
+@keyframes crt-roll {
+  to {
+    transform: translateY(433%);
+  }
+}
+
+/* l'immagine sul fosforo: il contenuto del terminale */
+.screen > main {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.term {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: var(--pad-y) var(--pad-x);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  font: var(--fs) / 1.35 var(--term-font);
+  font-variant-ligatures: none;
+  color: var(--ph);
+  text-shadow:
+    0 0 4px var(--ph-glow),
+    0 0 12px var(--ph-glow);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.term::-webkit-scrollbar {
+  display: none;
+}
+
+.term .dim,
+.dim {
+  color: var(--ph-dim);
+  text-shadow: none;
+}
+
+.term .bold,
+.bold {
+  font-weight: 700;
+}
+
+.term .inverse,
+.inverse {
+  background: var(--ph);
+  color: var(--glass-1);
+  text-shadow: none;
+  box-shadow: 0 0 8px var(--ph-glow);
+}
+
+.term a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--ph-dim);
+  cursor: pointer;
+}
+
+.term a:hover,
+.term a:focus-visible {
+  background: var(--ph);
+  color: var(--glass-1);
+  text-shadow: none;
+  outline: none;
+  box-shadow: 0 0 10px var(--ph-glow);
+}
+
+.term a:hover .dim,
+.term a:focus-visible .dim {
+  color: inherit;
+}
+
+/* immagini attraverso il fosforo: grigi moltiplicati sul colore del fosforo */
+.ph-img {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  line-height: 0;
+  background: var(--ph);
+  isolation: isolate;
+  opacity: 0.85;
+  /* il fascio non è mai nitido come un pixel moderno */
+  filter: blur(0.4px);
+  box-shadow: 0 0 14px var(--ph-glow);
+}
+
+.ph-img img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  filter: grayscale(1) contrast(1.15);
+  mix-blend-mode: multiply;
+}
+
+/* comandi rapidi del telefono (riempiti dal client, Task 10) */
+.chips {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  background: linear-gradient(transparent, #000c 30%);
+}
+
+.chips[hidden],
+.chips:empty {
+  display: none;
+}
+
+.chips > * {
+  font: 11px var(--term-font);
+  color: var(--ph);
+  background: none;
+  border: 1px solid var(--ph-dim);
+  border-radius: 3px;
+  padding: 4px 8px;
+  text-shadow: 0 0 4px var(--ph-glow);
+}
+
+/* ── spento e accensione ─────────────────────────────────────────────────── */
+
+.screen-off {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.screen-off::before {
+  content: '[ premi INVIO o clicca per accendere ]';
+  font: 14px var(--term-font);
+  letter-spacing: 0.15em;
+  color: #3a3a3a;
+  text-align: center;
+  padding: 0 16px;
+}
+
+/* sul telefono non c'è un tasto INVIO */
+@media (hover: none) and (pointer: coarse) {
+  .screen-off::before {
+    content: '[ tocca per accendere ]';
+  }
+}
+
+.screen.is-off {
+  background: radial-gradient(ellipse at 45% 40%, #1a1d1b 0%, #0e100f 60%, #070807 100%);
+}
+
+.screen.is-off > main {
+  visibility: hidden;
+}
+
+.screen.is-off::after {
+  animation: none;
+}
+
+.screen.is-off .screen-glass::after {
+  display: none;
+}
+
+.screen.is-off .screen-off {
+  display: flex;
+}
+
+.screen.is-powering > main {
+  animation: crt-power-on 0.5s ease-out;
+}
+
+@keyframes crt-power-on {
+  0% {
+    transform: scaleY(0.005) scaleX(0.6);
+    filter: brightness(4);
+  }
+  60% {
+    transform: scaleY(1) scaleX(1);
+    filter: brightness(1.8);
+  }
+  100% {
+    filter: none;
+  }
+}
+
+/* ── pannello sotto lo schermo: marca, suono, LED, interruttore ──────────── */
+
+.monitor-panel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 54px;
+  padding: 10px 6px 12px;
+  font: 11px/1 var(--term-font);
+  color: var(--bezel-ink);
+}
+
+.monitor-label {
+  margin-right: auto;
+  letter-spacing: 0.3em;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 #0008, 0 -1px 0 #5a524433;
+}
+
+.sound-indicator {
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.led {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #300;
+  box-shadow: inset 0 1px 1px #0008;
+}
+
+.led.is-on {
+  background: #f33;
+  box-shadow:
+    0 0 8px #f33,
+    inset 0 -1px 1px #a00;
+}
+
+.power-button {
+  flex: none;
+  position: relative;
+  width: 34px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  background: linear-gradient(#cfc6b4, #a59b88);
+  box-shadow:
+    0 3px 0 #5e5647,
+    0 4px 6px #000a,
+    inset 0 1px 0 #ece4d4,
+    inset 0 -1px 0 #8a8070;
+  transition:
+    transform 60ms,
+    box-shadow 60ms;
+}
+
+/* simbolo di accensione inciso sul tasto */
+.power-button::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid #6b6253;
+  border-top-color: transparent;
+  border-radius: 50%;
+}
+
+.power-button::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  background: #6b6253;
+  border-radius: 1px;
+}
+
+.power-button:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 #5e5647,
+    0 2px 3px #000a,
+    inset 0 1px 0 #ece4d4,
+    inset 0 -1px 0 #8a8070;
+}
+
+.power-button:focus-visible {
+  outline: 2px solid var(--ph);
+  outline-offset: 3px;
+}
+
+/* ── telefono: cornice sottile, interruttore sotto lo schermo ────────────── */
+
+@media (max-width: 600px) {
+  :root {
+    --fs: 13px;
+    --pad-y: 14px;
+    --pad-x: 12px;
+  }
+
+  body {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .monitor {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 8px 8px 0;
+    border-radius: 0;
+  }
+
+  .screen-well {
+    flex: 1;
+    display: flex;
+    padding: 3px;
+    border-radius: 20px;
+  }
+
+  .screen {
+    flex: 1;
+    width: 100%;
+    height: auto;
+    min-height: 300px;
+    border-radius: 18px;
+  }
+
+  .monitor-panel {
+    min-height: 48px;
+    gap: 12px;
+    padding: 8px 6px calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .monitor-label {
+    letter-spacing: 0.2em;
+  }
+}
+
+@media (max-width: 360px) {
+  .monitor-label {
+    display: none;
+  }
+
+  .sound-indicator {
+    margin-right: auto;
+  }
+}
+
+/* ── movimento ridotto: niente sfarfallio, niente lampo, niente banda ───── */
+
+@media (prefers-reduced-motion: reduce) {
+  .screen::after,
+  .screen-glass::after,
+  .screen.is-powering > main {
+    animation: none;
+  }
+
+  .screen-glass::after {
+    display: none;
+  }
+
+  .power-button {
+    transition: none;
+  }
+}
