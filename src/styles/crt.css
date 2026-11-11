@@ -316,12 +316,21 @@ body {
 
 .term-probe {
   position: absolute;
+  top: 0;
+  right: 100%; /* fuori a sinistra: non allarga l'area scorrevole */
   visibility: hidden;
   white-space: pre;
   pointer-events: none;
 }
 
-/* comandi rapidi del telefono (riempiti dal client, Task 10) */
+/* riga della ROM (boot): mai a capo, ritagliata al bordo destro dello schermo */
+.term-line.rom {
+  display: block;
+  overflow: hidden;
+  white-space: pre;
+}
+
+/* comandi rapidi del telefono (riempiti e mostrati dal client, solo con il tocco) */
 .chips {
   position: absolute;
   left: 0;
@@ -330,9 +339,15 @@ body {
   z-index: 6;
   display: flex;
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: 6px;
-  padding: 8px;
-  background: linear-gradient(transparent, #000c 30%);
+  padding: 18px 8px 8px;
+  background: linear-gradient(transparent, #000 45%);
+}
+
+/* lo scorrimento del testo si ferma sopra i chip */
+.screen.has-chips .term {
+  padding-bottom: 64px;
 }
 
 .chips[hidden],
@@ -341,13 +356,30 @@ body {
 }
 
 .chips > * {
-  font: 11px var(--term-font);
+  flex: 1 1 auto;
+  min-height: 38px;
+  font: 12px var(--term-font);
   color: var(--ph);
   background: none;
   border: 1px solid var(--ph-dim);
   border-radius: 3px;
-  padding: 4px 8px;
+  padding: 4px 6px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   text-shadow: 0 0 4px var(--ph-glow);
+}
+
+.chips > *:active {
+  background: var(--ph);
+  color: var(--glass-1);
+  text-shadow: none;
+}
+
+/* iOS ingrandisce la pagina al fuoco su un campo sotto i 16px: sul tocco il campo resta a 16px */
+@media (pointer: coarse) {
+  .term-prompt input {
+    font-size: 16px;
+  }
 }
 
 /* ── spento e accensione ─────────────────────────────────────────────────── */

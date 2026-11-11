@@ -12,6 +12,7 @@ import { createRouter, currentPath } from './router';
 import { createScreen, isDesktop, type Screen } from './screen';
 import { createShell, PHOSPHORS, type Phosphor, type Terminal } from './shell';
 import * as prefs from './prefs';
+import { createChips, isCoarsePointer } from './touch';
 
 type SiteIndex = {
   root: FsNode;
@@ -131,8 +132,21 @@ async function main() {
   let booting: { skip(): void } | null = null;
   let poweredAt = 0;
 
+  // Comandi rapidi del telefono: visibili solo a schermo acceso e con il tocco.
+  // Durante il boot un tocco salta alla fine, come ogni tocco sullo schermo.
+  const chips = createChips(document.querySelector<HTMLElement>('.chips')!, {
+    onCommand: (cmd) => exec(() => runEcho(cmd)),
+    onWrite: () => screen.focus(),
+    onTap: () => {
+      if (power !== 'booting') return false;
+      booting?.skip();
+      return true;
+    },
+  });
+
   const setScreenOn = (on: boolean) => {
     screenEl.classList.toggle('is-off', !on);
+    chips.show(on);
     led?.classList.toggle('is-on', on);
     html.classList.remove('power-pending');
   };
@@ -244,14 +258,14 @@ async function main() {
       kind,
       rom: site.boot.rom,
       tokens: song ? { canzone: song.label, data: song.date } : {},
-      print: (text) => screen.print([text ? { type: 'line', spans: [{ text }] } : { type: 'blank' }]),
+      print: (text) => screen.printRom(text),
       diskSeek: term.diskSeek,
       sleep,
     });
     booting = run;
     await run.done;
     booting = null;
-    const touch = matchMedia('(pointer: coarse)').matches;
+    const touch = isCoarsePointer();
     const welcome = (touch && site.boot.welcomeTouch) || site.boot.welcome;
     screen.print([{ type: 'blank' }, { type: 'line', spans: welcomeSpans(welcome) }, { type: 'blank' }]);
     power = 'on';

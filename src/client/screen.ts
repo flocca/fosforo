@@ -10,6 +10,7 @@ export type Screen = {
   input: HTMLInputElement;
   cols(): number;
   print(blocks: Block[]): void;
+  printRom(text: string): void; // riga della ROM: mai a capo, ritagliata a destra
   echo(command: string): void; // riga del prompt con il comando, come se fosse stato scritto
   clear(): void;
   setPrompt(label: string): void;
@@ -116,8 +117,8 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
     pre.scrollTop = lastEcho ? Math.min(bottom, lastEcho.offsetTop - padTop) : bottom;
   };
 
-  const append = (lines: Line[]) => {
-    out.append(...lines.map(lineNode));
+  const appendNodes = (nodes: HTMLElement[]) => {
+    out.append(...nodes);
     while (out.childElementCount > MAX_LINES) {
       const first = out.firstElementChild!;
       if (first === lastEcho) lastEcho = null;
@@ -125,6 +126,7 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
     }
     reveal();
   };
+  const append = (lines: Line[]) => appendNodes(lines.map(lineNode));
 
   const listeners: ((cmd: string) => void)[] = [];
   pre.addEventListener('click', (e) => {
@@ -146,6 +148,13 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
     cols: () => cols,
     print(blocks) {
       append(wrapBlocks(blocks, cols));
+    },
+    printRom(text) {
+      if (!text) return append(wrapBlocks([{ type: 'blank' }], cols));
+      const el = lineNode({ type: 'line', spans: [{ text }] });
+      el.classList.add('rom');
+      el.lastChild?.remove(); // la riga ROM è un blocco: niente "\n" finale
+      appendNodes([el]);
     },
     echo(command) {
       const lines = wrapBlocks([{ type: 'line', spans: [{ text: label.textContent ?? '', style: 'dim' }, { text: command }] }], cols);

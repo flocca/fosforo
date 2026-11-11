@@ -17,13 +17,11 @@ boot:
     - text: "LOADING CANZONE .... {data}"
       pause: 700
       disk: 4
-    - text: "  ___ ___  ___ ___  ___  ___  ___  ___"
+    - text: " ___   _    __  ___   _    _    _"
       pause: 300
-    - text: " | __/ _ \\/ __| __|/ _ \\| _ \\/ _ \\/ _ \\"
+    - text: " |_   | |  (_   |_   | |  |_)  | |"
       pause: 300
-    - text: " | _| (_) \\__ \\  _| (_) |   / (_) \\_, /"
-      pause: 300
-    - text: " |_| \\___/|___/_|  \\___/|_|_\\\\___/ /_/"
+    - text: " |    |_|  __)  |    |_|  | \\  |_|"
       pause: 1300
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
