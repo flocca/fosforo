@@ -340,6 +340,35 @@ export function humHarmonics(spec: HumSpec): { real: Float32Array; imag: Float32
   return { real, imag };
 }
 
+export type WhineSpec = {
+  /** fondamentale a regime (Hz): giri del motore per coppie di poli */
+  f0: number;
+  /** centro della zona dove il fischio è più forte (Hz) */
+  centerHz: number;
+  /** larghezza della zona (ottave, deviazione della gaussiana in log2) */
+  octaves: number;
+  seed: number;
+};
+
+/**
+ * Fischio metallico di un motorino (commutazione, cuscinetti): una serie fitta di armoniche
+ * di f0 che pesa soprattutto fra 4 e 13 kHz, ognuna con un livello suo, a caso ma fisso
+ * (come nel Dell L600r: righe ogni ~500 Hz da 2,5 a 17 kHz). Coefficienti per una PeriodicWave.
+ */
+export function motorWhine(spec: WhineSpec, sampleRate: number): { real: Float32Array; imag: Float32Array } {
+  const r = rng(spec.seed);
+  const n = Math.max(1, Math.floor((sampleRate / 2 - 1) / spec.f0));
+  const real = new Float32Array(n + 1);
+  const imag = new Float32Array(n + 1);
+  for (let k = 1; k <= n; k++) {
+    const d = Math.log2((k * spec.f0) / spec.centerHz) / spec.octaves;
+    // righe irregolari: alcune spiccano, altre quasi spariscono
+    const jag = 0.15 + 0.85 * r() ** 2;
+    imag[k] = Math.exp(-0.5 * d * d) * jag;
+  }
+  return { real, imag };
+}
+
 /** Curva per una WaveShaper: tanh normalizzata (saturazione morbida). */
 export function softClipCurve(size: number, drive: number): Float32Array {
   const out = new Float32Array(size);

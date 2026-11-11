@@ -26,6 +26,19 @@ https://cdn.freesound.org/previews/426/426151_136085-hq.mp3 pc-dodici-dischi
 https://cdn.freesound.org/previews/353/353240_4723780-hq.mp3 dell-l600r
 https://cdn.freesound.org/previews/259/259292_2843367-hq.mp3 floppy-lettura
 https://cdn.freesound.org/previews/259/259291_2843367-hq.mp3 floppy-scrittura
+https://cdn.freesound.org/previews/693/693859_9395330-hq.mp3 tasto-tv-crt
+https://cdn.freesound.org/previews/263/263900_4877562-hq.mp3 tasto-monitor-crt
+https://cdn.freesound.org/previews/639/639350_12083535-hq.mp3 tasto-vcr
+https://cdn.freesound.org/previews/328/328852_3482490-hq.mp3 tasto-gateway
+https://cdn.freesound.org/previews/477/477519_9961300-hq.mp3 tasto-teac
+https://cdn.freesound.org/previews/364/364202_1218676-hq.mp3 tasto-vcr-doppio
+https://cdn.freesound.org/previews/31/31592_92661-hq.mp3 bilanciere-tektronix
+https://cdn.freesound.org/previews/870/870771_18412227-hq.mp3 tasti-tv-analogica
+https://cdn.freesound.org/previews/321/321116_4877562-hq.mp3 amiga-alimentatore
+https://cdn.freesound.org/previews/556/556363_10713160-hq.mp3 amplificatore-chungh
+https://cdn.freesound.org/previews/551/551405_6985703-hq.mp3 ibm-5150
+https://cdn.freesound.org/previews/870/870770_18412227-hq.mp3 rele-grandi
+https://cdn.freesound.org/previews/203/203600_2843367-hq.mp3 rele-mrauralization
 LIST
 
 curl -fsSL -o "$raw/amiga.zip" https://opengameart.org/sites/default/files/amiga_600_floppy_sounds.zip

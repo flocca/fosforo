@@ -1,0 +1,131 @@
+{
+  "nome": "Preferita dell'11 novembre (CP/M, IBM 5150 rosso, floppy a pezzi, tasto della TV analogica)",
+  "profilo": "cpm8",
+  "sorgenti": {
+    "interruttore": "registrazione",
+    "tubo": "nuovo",
+    "ventola": "nuovo",
+    "rete": "nuovo",
+    "disco": "registrazione",
+    "tasti": "registrazione",
+    "cassa": "nuovo"
+  },
+  "parametri": {
+    "interruttore": {
+      "level": 0.6,
+      "bodyHz": 240,
+      "bodyT60": 0.11,
+      "weight": 0.75,
+      "bright": 0.85,
+      "metalT60": 0.03,
+      "bounces": 3,
+      "bounceMs": 2.2
+    },
+    "tubo": {
+      "crackle": 0.35,
+      "crackleRate": 220,
+      "crackleDur": 1.4,
+      "hiss": 0.25,
+      "whine": 0.0025,
+      "lineHz": 15625,
+      "whineRise": 0.9,
+      "jitter": 8
+    },
+    "ventola": {
+      "level": 0.16,
+      "rpm": 2800,
+      "blades": 5,
+      "tone": 0.32,
+      "air": 0.75,
+      "airHz": 950,
+      "shaftAm": 0.08,
+      "wobble": 0.12,
+      "motorHum": 0.35,
+      "whine": 0.15,
+      "whineHz": 504,
+      "whineCenter": 8000,
+      "spinUp": 2.6,
+      "spinDown": 5
+    },
+    "rete": {
+      "level": 0.08,
+      "mains": 50,
+      "fundamental": 0.15,
+      "rolloff": 6,
+      "odd": 0.25,
+      "drive": 1.2,
+      "inrush": 2.8,
+      "inrushS": 0.22,
+      "wander": 0.08
+    },
+    "disco": {
+      "level": 0.7,
+      "stepTone": 0.8,
+      "stepT60": 0.07,
+      "thump": 0.7,
+      "stepMs": 10,
+      "seekN": 6,
+      "settleMs": 30,
+      "headLoad": 0.8,
+      "motor": 0.45,
+      "rotationHz": 6,
+      "motorSpinUp": 0.9,
+      "recalSteps": 30,
+      "stopBang": 0
+    },
+    "tasti": {
+      "level": 0.5,
+      "tone": 1,
+      "decay": 1,
+      "latchMs": 18,
+      "release": 0.55,
+      "sound": 0,
+      "phosphor": 0,
+      "power": 1
+    },
+    "cassa": {
+      "on": 1,
+      "wet": 0.32,
+      "size": 0.22,
+      "resScale": 0.85,
+      "lowpass": 8500
+    }
+  },
+  "registrazioni": {
+    "interruttore": {
+      "accendi": {
+        "titolo": "IBM 5150: interruttore rosso, accensione",
+        "file": "ibm-5150",
+        "inizio": 3.24,
+        "durata": 0.15,
+        "livello": 1
+      },
+      "spegni": {
+        "titolo": "IBM 5150: interruttore rosso, spegnimento",
+        "file": "ibm-5150",
+        "inizio": 40.366,
+        "durata": 0.18,
+        "livello": 0.5
+      }
+    },
+    "disco": {
+      "titolo": "MrAuralization a pezzi: passi, ricerche e motore",
+      "file": "floppy-lettura",
+      "inizio": 0,
+      "durata": 0,
+      "livello": 6
+    },
+    "tasti": {
+      "titolo": "TV analogica: tasto del pannello",
+      "file": "tasti-tv-analogica",
+      "inizio": 0.34,
+      "durata": 0.15,
+      "livello": 1,
+      "rilascio": {
+        "start": 0.564,
+        "duration": 0.12
+      }
+    }
+  },
+  "tastoNellaSequenza": false
+}

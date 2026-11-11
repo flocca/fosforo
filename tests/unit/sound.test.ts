@@ -5,6 +5,7 @@ import {
   crackleShape,
   curveAt,
   humHarmonics,
+  motorWhine,
   nextVariant,
   pinkNoise,
   renderClick,
@@ -122,6 +123,22 @@ describe('dsp', () => {
     expect(h.imag[1]).toBeCloseTo(0.15);
     expect(h.imag[7]).toBe(0); // dispari solo 3x e 5x
     expect(h.imag[4]).toBeCloseTo(0.5, 2); // -6 dB per ottava
+  });
+
+  it('fischio del motore: armoniche fitte e acute, poco sotto i 2 kHz, niente oltre Nyquist', () => {
+    const f0 = 504;
+    const w = motorWhine({ f0, centerHz: 7500, octaves: 1.1, seed: 3 }, 48000);
+    expect(w.real.length).toBe(w.imag.length);
+    const amp = (k: number) => Math.hypot(w.real[k], w.imag[k]);
+    // la fondamentale e le prime armoniche (sotto i 2 kHz) sono deboli rispetto alla zona dei 5-13 kHz
+    const low = [1, 2, 3].reduce((m, k) => Math.max(m, amp(k)), 0);
+    const high = Array.from({ length: w.imag.length }, (_, k) => k).filter((k) => k * f0 > 5000 && k * f0 < 13000).reduce((m, k) => Math.max(m, amp(k)), 0);
+    expect(high).toBeGreaterThan(low * 10);
+    // tutte le armoniche stanno sotto Nyquist
+    expect((w.imag.length - 1) * f0).toBeLessThan(24000);
+    // stesso seme, stesso fischio; seme diverso, livelli diversi
+    expect(motorWhine({ f0, centerHz: 7500, octaves: 1.1, seed: 3 }, 48000).imag).toEqual(w.imag);
+    expect(motorWhine({ f0, centerHz: 7500, octaves: 1.1, seed: 4 }, 48000).imag).not.toEqual(w.imag);
   });
 
   it('curva dei giri: parte, arriva, sale sempre', () => {

@@ -9,6 +9,7 @@ import {
   bounces,
   curveAt,
   humHarmonics,
+  motorWhine,
   nextVariant,
   normalize,
   pinkNoise,
@@ -230,9 +231,11 @@ export function createCase(ctx: BaseAudioContext, out: AudioNode, p: Params, see
       last = key;
       conv.buffer = toBuffer(ctx, renderCaseIR(caseSpec(q), ctx.sampleRate, seed));
     }
-    wet.gain.value = q.wet;
-    dry.gain.value = 1 - q.wet * 0.4;
-    lp.frequency.value = q.lowpass;
+    // mobile spento: le voci meccaniche passano dritte, senza risonanza né passa basso
+    const on = q.on !== 0;
+    wet.gain.value = on ? q.wet : 0;
+    dry.gain.value = on ? 1 - q.wet * 0.4 : 1;
+    lp.frequency.value = on ? q.lowpass : Math.min(20000, ctx.sampleRate / 2);
   }
   update(p);
   return { input, update };
@@ -455,6 +458,13 @@ export class Synth {
     // ronzio del motore a 2x rete: c'è da subito, non dipende dai giri
     const motor = this.gain(p.motorHum * p.level * 0.15, this.bus.mech);
     const mo = this.osc(mains * 2, motor);
+    // fischio metallico del motorino: righe fitte e acute, sale e scende con i giri.
+    // Va diretto: il passa basso del mobile lo taglierebbe.
+    const wc = motorWhine({ f0: p.whineHz, centerHz: p.whineCenter, octaves: 1.1, seed: this.seed * 31 + 7 }, c.sampleRate);
+    const whineOut = this.gain(0, this.bus.direct);
+    const whine = this.osc(p.whineHz, whineOut, c.createPeriodicWave(wc.real, wc.imag));
+    const wj = this.loop(this.noise('wander', 5.3, 2), at, this.gain(p.whineHz * 0.003, whine.frequency));
+    const whineLevel = (f: number) => p.level * p.whine * 3.5 * f ** 2;
 
     const level = (f: number) => p.level * f ** 2.5;
     const set = (from: number, to: number, t: number, secs: number) => {
@@ -465,6 +475,8 @@ export class Synth {
         [tone.frequency, (f) => Math.max(1, f * bpf)],
         [shaft.frequency, (f) => Math.max(0.1, (f * p.rpm) / 60)],
         [band.frequency, (f) => 200 + f * (p.airHz - 200)],
+        [whineOut.gain, whineLevel],
+        [whine.frequency, (f) => Math.max(1, f * p.whineHz)],
       ];
       for (const [param, k] of params) {
         param.cancelScheduledValues(t);
@@ -474,8 +486,12 @@ export class Synth {
     };
     const upSecs = spinUp ? p.spinUp : 0;
     if (spinUp) set(0.001, 1, at, p.spinUp);
-    else out.gain.value = level(1);
+    else {
+      out.gain.value = level(1);
+      whineOut.gain.value = whineLevel(1);
+    }
     shaft.start(at);
+    whine.start(at);
     tone.start(at);
     mo.start(at);
     return {
@@ -486,7 +502,7 @@ export class Synth {
         set(f, 0.001, t, secs);
         motor.gain.setTargetAtTime(0, t, 0.03);
         const end = t + secs + 0.1;
-        for (const n of [a, low, flow, jit, shaft, tone, mo]) n.stop(end);
+        for (const n of [a, low, flow, jit, shaft, tone, mo, whine, wj]) n.stop(end);
       },
     };
   }

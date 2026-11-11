@@ -98,6 +98,9 @@ export const SCHEMA: Record<VoiceId, ParamDef[]> = {
     { key: 'shaftAm', label: "sbilanciamento dell'albero", min: 0, max: 0.4, step: 0.01 },
     { key: 'wobble', label: 'variazione del flusso', min: 0, max: 0.4, step: 0.01 },
     { key: 'motorHum', label: 'ronzio del motore (2x rete)', min: 0, max: 1, step: 0.01 },
+    { key: 'whine', label: 'fischio metallico del motorino', min: 0, max: 1, step: 0.01 },
+    { key: 'whineHz', label: 'fischio: passo delle righe (Hz)', min: 150, max: 1200, step: 1 },
+    { key: 'whineCenter', label: 'fischio: zona più forte (Hz)', min: 2000, max: 14000, step: 100 },
     { key: 'spinUp', label: 'tempo per prendere giri (s)', min: 0.3, max: 8, step: 0.1 },
     { key: 'spinDown', label: 'tempo per fermarsi (s)', min: 0.5, max: 12, step: 0.1 },
   ],
@@ -148,6 +151,7 @@ export const SCHEMA: Record<VoiceId, ParamDef[]> = {
     { key: 'power', label: 'tasto accensione', min: 0, max: 2, step: 1, options: BUTTON_VARIANTS },
   ],
   cassa: [
+    { key: 'on', label: 'mobile', min: 0, max: 1, step: 1, options: onOff },
     { key: 'wet', label: 'riverbero del mobile', min: 0, max: 0.7, step: 0.01 },
     { key: 'size', label: 'coda del mobile (s)', min: 0.04, max: 0.5, step: 0.01 },
     { key: 'resScale', label: 'risonanze del mobile (scala)', min: 0.5, max: 2, step: 0.01 },
@@ -160,11 +164,11 @@ const BASE: Record<VoiceId, Params> = {
   interruttore: { level: 0.55, bodyHz: 260, bodyT60: 0.08, weight: 0.6, bright: 1, metalT60: 0.03, bounces: 3, bounceMs: 1.6 },
   tubo: { crackle: 0.35, crackleRate: 220, crackleDur: 1.4, hiss: 0.25, whine: 0.0025, lineHz: 15625, whineRise: 0.9, jitter: 8 },
   smagnetizzazione: { on: 1, level: 0.35, decay: 0.7, thump: 0.4, thumpHz: 95, buzz: 0.25, ring: 1, rattle: 0.35, maskScale: 1 },
-  ventola: { level: 0.16, rpm: 2700, blades: 7, tone: 0.3, air: 0.7, airHz: 1100, shaftAm: 0.08, wobble: 0.12, motorHum: 0.25, spinUp: 2.6, spinDown: 5 },
+  ventola: { level: 0.16, rpm: 2700, blades: 7, tone: 0.3, air: 0.7, airHz: 1100, shaftAm: 0.08, wobble: 0.12, motorHum: 0.25, whine: 0.15, whineHz: 504, whineCenter: 8000, spinUp: 2.6, spinDown: 5 },
   rete: { level: 0.08, mains: 50, fundamental: 0.15, rolloff: 6, odd: 0.25, drive: 1.2, inrush: 2.8, inrushS: 0.22, wander: 0.08 },
   disco: { level: 0.6, stepTone: 1, stepT60: 0.05, thump: 0.5, stepMs: 8, seekN: 6, settleMs: 22, headLoad: 0, motor: 0.35, rotationHz: 5, motorSpinUp: 0.4, recalSteps: 40, stopBang: 0 },
   tasti: { level: 0.5, tone: 1, decay: 1, latchMs: 18, release: 0.55, sound: 0, phosphor: 0, power: 1 },
-  cassa: { wet: 0.25, size: 0.16, resScale: 1, lowpass: 9000 },
+  cassa: { on: 1, wet: 0.25, size: 0.16, resScale: 1, lowpass: 9000 },
 };
 
 function profile(p: Omit<Profile, 'params'> & { params: Partial<Record<VoiceId, Params>> }): Profile {
