@@ -131,7 +131,7 @@ Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel test
 
 `npm run check` esegue il controllo dei tipi e i test unitari. `npx playwright test` costruisce il sito, lo serve su una porta sua e lo chiude alla fine (non riusa mai un server già acceso).
 
-I confronti visivi di `tests/e2e/look.spec.ts` girano solo con `PW_VISUAL=1` e solo se esiste `tests/e2e/look.spec.ts-snapshots/`. Le baseline dipendono dal sistema, quindi si generano dentro il container `mcr.microsoft.com/playwright:v1.64.1-noble`, la stessa immagine della CI, e solo dopo che l'aspetto è stato approvato.
+I confronti visivi di `tests/e2e/look.spec.ts` girano solo con `PW_VISUAL=1`. Le baseline sono in `tests/e2e/look.spec.ts-snapshots/` (approvate da Giacomo) e dipendono dal sistema: si rigenerano solo dentro il container `mcr.microsoft.com/playwright:v1.64.1-noble`, la stessa immagine della CI, e solo dopo una nuova approvazione dell'aspetto. Se mancano, i test falliscono.
 
 ## Licenza e crediti
 

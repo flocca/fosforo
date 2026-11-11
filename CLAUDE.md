@@ -17,7 +17,7 @@ Public GPL-3.0 Astro engine: renders a content folder as a phosphor-CRT terminal
 
 ## Visual baselines
 
-`tests/e2e/look.spec.ts` runs only with `PW_VISUAL=1`, skips while `tests/e2e/look.spec.ts-snapshots/` is absent, and its baselines exist only for the Playwright container `mcr.microsoft.com/playwright:v1.64.1-noble` (pixels depend on the system). Regenerate baselines only after Giacomo approves the look, inside that container.
+`tests/e2e/look.spec.ts` runs only with `PW_VISUAL=1`; its baselines are committed in `tests/e2e/look.spec.ts-snapshots/` (approved by Giacomo; a missing one fails) and are valid only for the Playwright container `mcr.microsoft.com/playwright:v1.64.1-noble` (pixels depend on the system). Regenerate baselines only after Giacomo approves the look, inside that container.
 
 ## Content formats are a contract
 
