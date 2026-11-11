@@ -5,6 +5,7 @@
  * - .monitor, .screen (sovrapposizioni: scanline, vignettatura, sfarfallio)
  * - .screen.is-off (spento), .screen.is-powering (lampo di accensione)
  * - .term, .dim, .bold, .inverse, .ph-img
+ * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
  * - .power-button, .led.is-on, .sound-indicator, .chips
  */
 
@@ -281,6 +282,37 @@ body {
   height: auto;
   filter: grayscale(1) contrast(1.15);
   mix-blend-mode: multiply;
+}
+
+/* terminale vivo (client): output, prompt con l'input vero, sonda della larghezza */
+.term-prompt {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.term-prompt > .dim {
+  flex: none;
+}
+
+.term-prompt input {
+  flex: 1 1 10ch;
+  min-width: 10ch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  caret-color: var(--ph);
+}
+
+.term-probe {
+  position: absolute;
+  visibility: hidden;
+  white-space: pre;
+  pointer-events: none;
 }
 
 /* comandi rapidi del telefono (riempiti dal client, Task 10) */

@@ -1,0 +1,172 @@
+// Schermo del terminale: righe di output nel <pre class="term"> e prompt con un <input> vero.
+import type { Block, Line, Span } from '../lib/blocks';
+import { cmdToUrl } from '../lib/level0';
+import { wrapBlocks } from '../lib/wrap';
+
+export const MAX_LINES = 500;
+const MIN_COLS = 20;
+
+export type Screen = {
+  input: HTMLInputElement;
+  cols(): number;
+  print(blocks: Block[]): void;
+  echo(command: string): void; // riga del prompt con il comando, come se fosse stato scritto
+  clear(): void;
+  setPrompt(label: string): void;
+  focus(): void;
+  onCommand(cb: (cmd: string) => void): void;
+};
+
+function spanNode(s: Span): Node {
+  let node: Node = document.createTextNode(s.text);
+  if (s.style) {
+    const el = document.createElement('span');
+    el.className = s.style;
+    el.append(node);
+    node = el;
+  }
+  if (s.cmd) {
+    const a = document.createElement('a');
+    // L'href è l'indirizzo dell'elemento: clic centrale e ctrl/cmd-clic aprono la pagina vera
+    a.href = cmdToUrl(s.cmd) ?? '#';
+    a.dataset.cmd = s.cmd;
+    a.append(node);
+    node = a;
+  } else if (s.href) {
+    const a = document.createElement('a');
+    a.href = s.href;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.append(node);
+    node = a;
+  }
+  return node;
+}
+
+function lineNode(l: Line): HTMLElement {
+  const el = document.createElement('span');
+  el.className = 'term-line';
+  if (l.type === 'image') {
+    const wrap = document.createElement('span');
+    wrap.className = 'ph-img';
+    const img = document.createElement('img');
+    Object.assign(img, { src: l.src, alt: l.alt, width: l.width, height: l.height, loading: 'lazy', decoding: 'async' });
+    wrap.append(img);
+    el.append(wrap);
+  } else {
+    el.append(...l.spans.map(spanNode));
+  }
+  el.append('\n');
+  return el;
+}
+
+export const isDesktop = () => matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+// `keep`: l'output già presente (la pagina 404) resta in cima allo schermo.
+export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen {
+  const out = document.createElement('span');
+  out.className = 'term-out';
+  out.setAttribute('role', 'log');
+  out.setAttribute('aria-live', 'polite');
+
+  if (keep && pre.childNodes.length) {
+    const kept = document.createElement('span');
+    kept.className = 'term-line';
+    kept.append(...pre.childNodes, '\n');
+    out.append(kept);
+  }
+
+  const promptLine = document.createElement('span');
+  promptLine.className = 'term-prompt';
+  const label = document.createElement('span');
+  label.className = 'dim';
+  const input = document.createElement('input');
+  Object.assign(input, { type: 'text', autocomplete: 'off', spellcheck: false, enterKeyHint: 'send' });
+  input.setAttribute('aria-label', 'Comando');
+  input.setAttribute('autocapitalize', 'off');
+  input.setAttribute('autocorrect', 'off');
+  promptLine.append(label, input);
+
+  // Sonda per la larghezza di un carattere
+  const probe = document.createElement('span');
+  probe.className = 'term-probe';
+  probe.setAttribute('aria-hidden', 'true');
+  probe.textContent = 'M'.repeat(100);
+
+  pre.replaceChildren(out, promptLine, probe);
+
+  let cols = 72;
+  const measure = () => {
+    const cs = getComputedStyle(pre);
+    const inner = pre.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const ch = probe.getBoundingClientRect().width / 100;
+    // Solo l'output nuovo usa le colonne ricalcolate: quello già stampato resta com'è
+    if (ch > 0 && inner > 0) cols = Math.max(MIN_COLS, Math.floor((inner + 0.5) / ch));
+  };
+  measure();
+  new ResizeObserver(measure).observe(pre);
+  document.fonts?.ready.then(measure).catch(() => {});
+
+  let lastEcho: HTMLElement | null = null;
+  // Se l'output dell'ultimo comando non sta nello schermo se ne mostra l'inizio, altrimenti il fondo.
+  const reveal = () => {
+    const padTop = parseFloat(getComputedStyle(pre).paddingTop);
+    const bottom = pre.scrollHeight - pre.clientHeight;
+    pre.scrollTop = lastEcho ? Math.min(bottom, lastEcho.offsetTop - padTop) : bottom;
+  };
+
+  const append = (lines: Line[]) => {
+    out.append(...lines.map(lineNode));
+    while (out.childElementCount > MAX_LINES) {
+      const first = out.firstElementChild!;
+      if (first === lastEcho) lastEcho = null;
+      first.remove();
+    }
+    reveal();
+  };
+
+  const listeners: ((cmd: string) => void)[] = [];
+  pre.addEventListener('click', (e) => {
+    const target = e.target as Element;
+    const a = target.closest?.('a[data-cmd]') as HTMLAnchorElement | null;
+    if (a) {
+      // Clic centrale o con modificatori: comportamento nativo del link
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      for (const cb of listeners) cb(a.dataset.cmd!);
+      return;
+    }
+    if (target.closest?.('a')) return;
+    if (isDesktop() && !getSelection()?.toString()) input.focus({ preventScroll: true });
+  });
+
+  return {
+    input,
+    cols: () => cols,
+    print(blocks) {
+      append(wrapBlocks(blocks, cols));
+    },
+    echo(command) {
+      const lines = wrapBlocks([{ type: 'line', spans: [{ text: label.textContent ?? '', style: 'dim' }, { text: command }] }], cols);
+      const before = out.lastElementChild;
+      append(lines);
+      // con l'a capo l'eco può occupare più righe: si parte dalla prima
+      lastEcho = (before ? before.nextElementSibling : out.firstElementChild) as HTMLElement | null;
+      reveal();
+    },
+    clear() {
+      out.replaceChildren();
+      lastEcho = null;
+      pre.scrollTop = 0;
+    },
+    setPrompt(text) {
+      label.textContent = text;
+    },
+    focus() {
+      input.focus({ preventScroll: true });
+    },
+    onCommand(cb) {
+      listeners.push(cb);
+    },
+  };
+}
