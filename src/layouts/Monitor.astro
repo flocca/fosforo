@@ -81,7 +81,12 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
           <span class="panel-led sound-led is-on" aria-hidden="true"></span>
         </span>
         <span class="panel-key">
-          <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled></button>
+          <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled>
+            <svg viewBox="0 0 20 14" aria-hidden="true" focusable="false">
+              <path class="letter" d="M1.5 12.5L5.5 1.5L9.5 12.5M3 8.5h5" />
+              <path class="cursor" d="M14 5.5h3.5v6H14z" />
+            </svg>
+          </button>
           <span class="panel-led phosphor-led is-on" aria-hidden="true"></span>
         </span>
         <!-- senza JavaScript i tasti restano disabilitati: lo schermo mostra già il livello 0 -->
