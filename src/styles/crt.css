@@ -578,7 +578,7 @@ body {
   cursor: default;
 }
 
-/* selettore dei fosfori: una "A" con il cursore a blocco incisa sul tasto; il colore lo mostra la spia */
+/* selettore dei fosfori: una "A" incisa sul tasto; il colore lo mostra la spia */
 .phosphor-button svg {
   position: absolute;
   left: 50%;
@@ -591,10 +591,6 @@ body {
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.phosphor-button .cursor {
-  fill: #6b6253;
 }
 
 /* tasto del suono: altoparlante inciso, con onde da acceso e barrato da spento */
