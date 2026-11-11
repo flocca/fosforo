@@ -149,17 +149,10 @@ function textLayer(lines: CardLine[], svgGlow: boolean): string {
   return `${glow}<g fill="${GREEN}">${paths}</g>`;
 }
 
-// Vetro del monitor: rettangolo arrotondato dentro la scheda opaca, gli angoli dell'immagine restano pieni.
+// Vetro della scheda piatta (immagine nella pagina): rettangolo arrotondato con un filo verde.
 const GLASS = { inset: 22, radius: 26 };
 const bezel = (w: number, h: number) =>
   `<rect x="${GLASS.inset}" y="${GLASS.inset}" width="${w - 2 * GLASS.inset}" height="${h - 2 * GLASS.inset}" rx="${GLASS.radius}" fill="none" stroke="${GREEN}" stroke-opacity="0.35" stroke-width="3"/>`;
-// Tutto ciò che sta fuori dal vetro, pieno del colore del tubo (angoli squadrati e opachi).
-const outsideGlass = (w: number, h: number) => {
-  const i = GLASS.inset;
-  const r = GLASS.radius;
-  const inner = `M${i + r} ${i}H${w - i - r}A${r} ${r} 0 0 1 ${w - i} ${i + r}V${h - i - r}A${r} ${r} 0 0 1 ${w - i - r} ${h - i}H${i + r}A${r} ${r} 0 0 1 ${i} ${h - i - r}V${i + r}A${r} ${r} 0 0 1 ${i + r} ${i}Z`;
-  return `<path fill-rule="evenodd" fill="${BG}" d="M0 0H${w}V${h}H0Z${inner}"/>`;
-};
 
 const vignetteGradient = `<defs><radialGradient id="vg" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#0c1d12"/><stop offset="1" stop-color="${BG}"/></radialGradient>` +
   `<radialGradient id="vr" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#10261a"/><stop offset="1" stop-color="#0a160e"/></radialGradient></defs>`;
@@ -223,8 +216,40 @@ function prng(seed: number): () => number {
 const BG_RGB = [5, 8, 6];
 const GREEN_RGB = [0x33, 0xff, 0x66];
 
+// Cornice del monitor nelle anteprime social: plastica scura con i colori del `.monitor` del sito,
+// fino ai bordi della scheda; il vetro si vede da un'apertura arrotondata che segue la curvatura.
+// Il contenuto è rimpicciolito di `SCREEN_SCALE` (circa 48 px di cornice sopra e sotto, 72 ai lati).
+const SCREEN_SCALE = 0.95;
+// Apertura nella plastica, in pixel della scheda sorgente: rientro dai bordi e raggio degli angoli.
+const OPENING = { insetX: 0, insetY: 12, radius: 34 };
+// Larghezza dell'incavo tra plastica e vetro, in pixel d'uscita.
+export const RIM = 9;
+const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+export const BEZEL = {
+  top: hex('#3d382f'), // plastica in alto
+  bottom: hex('#24201a'), // plastica in basso
+  rimTop: hex('#141210'), // incavo, lato in ombra
+  rimBottom: hex('#2e2922'), // incavo, lato in luce (come il fondo di `.screen-well`)
+  rimDeep: [8, 7, 6], // fondo dell'incavo, a filo del vetro
+  lip: hex('#5a5244'), // labbro chiaro (come l'inset di `.monitor`)
+};
+
+// Distanza con segno dal bordo dell'apertura (negativa dentro), in pixel della scheda sorgente.
+export function openingDistance(x: number, y: number): number {
+  const R = OPENING.radius;
+  const qx = Math.abs(x - (OG_W - 1) / 2) - ((OG_W - 1) / 2 - OPENING.insetX) + R;
+  const qy = Math.abs(y - (OG_H - 1) / 2) - ((OG_H - 1) / 2 - OPENING.insetY) + R;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - R;
+}
+
+const mix = (a: number[], b: number[], t: number) => a.map((v, i) => v + (b[i] - v) * t);
+const smooth = (e0: number, e1: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+  return t * t * (3 - 2 * t);
+};
+
 // Da scheda composta a foto di un vecchio schermo a fosfori: bagliore, scanline (una volta sola),
-// grana, banda di scansione, vignettatura, curvatura; sopra, nitida, la cornice del vetro.
+// grana, banda di scansione, curvatura, vignettatura; intorno la cornice di plastica del monitor.
 async function crtEffects(card: Buffer, seed: string): Promise<Buffer> {
   const W = OG_W;
   const H = OG_H;
@@ -271,7 +296,7 @@ async function crtEffects(card: Buffer, seed: string): Promise<Buffer> {
     }
   }
 
-  // 5. vignettatura e 6. curvatura, in un solo passaggio sull'immagine d'uscita
+  // 5. curvatura, 6. vignettatura e 7. cornice del monitor, in un solo passaggio sull'immagine d'uscita
   const out = Buffer.alloc(n);
   const cx = (W - 1) / 2;
   const cy = (H - 1) / 2;
@@ -289,38 +314,55 @@ async function crtEffects(card: Buffer, seed: string): Promise<Buffer> {
     const v = (y - cy) / cy;
     for (let x = 0; x < W; x++) {
       const u = (x - cx) / cx;
-      const [su, sv] = barrel(u, v);
-      const sx = su * cx + cx;
-      const sy = sv * cy + cy;
+      const [bu, bv] = barrel(u, v);
+      const su = bu / SCREEN_SCALE;
+      const sv = bv / SCREEN_SCALE;
+      const sx = Math.min(W - 1.001, Math.max(0, su * cx + cx));
+      const sy = Math.min(H - 1.001, Math.max(0, sv * cy + cy));
       const o = (y * W + x) * 3;
-      if (sx < 0 || sy < 0 || sx > W - 2 || sy > H - 2) {
-        out[o] = BG_RGB[0];
-        out[o + 1] = BG_RGB[1];
-        out[o + 2] = BG_RGB[2];
-        continue;
-      }
-      const r = Math.sqrt(su * su * 0.8 + sv * sv * 0.8);
-      const t = Math.min(1, Math.max(0, (r - 0.45) / 0.75));
-      const vig = 1 - 0.6 * t * t * (3 - 2 * t);
       const noise = grain[(y >> 1) * gw + (x >> 1)];
-      // riflesso della stanza sul vetro, in alto a sinistra (come `.screen-glass` del sito)
-      const gx = (u + 0.44) / 0.7;
-      const gy = (v + 0.76) / 0.45;
-      const glare = 9 * Math.max(0, 1 - gx * gx - gy * gy);
-      for (let c = 0; c < 3; c++) {
-        const val = BG_RGB[c] + (sample(sx, sy, c) - BG_RGB[c]) * vig + (noise * GREEN_RGB[c]) / 255 + glare;
-        out[o + c] = val < 0 ? 0 : val > 255 ? 255 : Math.round(val);
+      // distanza dal bordo dell'apertura in pixel d'uscita (circa), negativa dentro il vetro:
+      // l'apertura segue la curvatura del tubo
+      const dist = (openingDistance(su * cx + cx, sv * cy + cy) * SCREEN_SCALE) / (1 + BARREL_K * (u * u + v * v));
+
+      let glass = [0, 0, 0];
+      if (dist < 1) {
+        const r = Math.sqrt(su * su * 0.8 + sv * sv * 0.8);
+        const vig = 1 - 0.6 * smooth(0.45, 1.2, r);
+        // ombra interna al bordo del vetro, più marcata in alto (la plastica sporge sopra)
+        const depth = -dist;
+        const top = sv < 0 ? Math.min(1, -sv * 1.6) : 0;
+        const shade = Math.max(0, 1 - 0.85 * Math.exp(-depth / 3) - 0.35 * Math.exp(-depth / (10 + 10 * top)) * (0.5 + 0.5 * top));
+        // riflesso della stanza sul vetro, in alto a sinistra (come `.screen-glass` del sito)
+        const gx = (u + 0.44) / 0.7;
+        const gy = (v + 0.76) / 0.45;
+        const glare = 9 * Math.max(0, 1 - gx * gx - gy * gy);
+        glass = [0, 1, 2].map(
+          (c) => (BG_RGB[c] + (sample(sx, sy, c) - BG_RGB[c]) * vig) * shade + (noise * GREEN_RGB[c]) / 255 + glare,
+        );
       }
+      let px = glass;
+      if (dist > -1) {
+        // plastica: gradiente verticale come `.monitor`, luce appena da sinistra, un filo di grana
+        const sideLight = 1 + 0.04 * -u;
+        const plastic = mix(BEZEL.top, BEZEL.bottom, y / (H - 1)).map((c) => c * sideLight + noise * 0.25);
+        // incavo scuro intorno al vetro, come `.screen-well`, che risale verso la plastica
+        const rimCol = mix(BEZEL.rimTop, BEZEL.rimBottom, Math.min(1, Math.max(0, (sv + 1) / 2)) ** 1.5);
+        let col = mix(mix(BEZEL.rimDeep, rimCol, smooth(0, 2.5, dist)), plastic, smooth(0, RIM, dist));
+        // labbro chiaro dove l'incavo incontra la plastica, solo nella metà bassa
+        col = mix(col, BEZEL.lip, Math.exp(-((dist - RIM) ** 2) / 1.6) * smooth(-0.2, 0.6, sv) * 0.45);
+        // bordo superiore della scheda: filo di luce come l'inset del `.monitor`; in basso un'ombra
+        if (y < 2) col = mix(col, BEZEL.lip, 0.7);
+        if (y > H - 4) col = col.map((c) => c * 0.7);
+        const a = smooth(-0.5, 0.5, dist);
+        px = glass.map((g, i) => g * (1 - a) + col[i] * a);
+      }
+      for (let c = 0; c < 3; c++) out[o + c] = px[c] < 0 ? 0 : px[c] > 255 ? 255 : Math.round(px[c]);
     }
   }
 
   // PNG a tavolozza: con la grana un PNG a colori pieni supera i 400 KB (WhatsApp scarta le immagini pesanti)
-  const flat = await sharp(out, { raw })
-    .composite([{ input: svg(W, H, outsideGlass(W, H) + bezel(W, H)) }])
-    .removeAlpha()
-    .raw()
-    .toBuffer();
-  return sharp(flat, { raw }).png({ palette: true, colors: 256, compressionLevel: 9 }).toBuffer();
+  return sharp(out, { raw }).png({ palette: true, colors: 256, compressionLevel: 9 }).toBuffer();
 }
 // Righe nere in alto e in basso (letterbox delle miniature 4:3 di YouTube, o film in 2.35:1):
 // una riga è "banda" se quasi tutta nera (tollera i comandi del player stampati sopra). Si toglie
@@ -349,18 +391,29 @@ export async function letterbox(thumb: Buffer): Promise<{ top: number; bottom: n
   return { top, bottom, width, height };
 }
 
-// Fotogramma a tutta area (bande nere tolte, ritaglio centrato), in scala di grigi tinto di verde.
-async function tintedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> {
+// Fotogramma a tutta area: bande nere tolte, ritaglio centrato.
+async function croppedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> {
   const { top, bottom, width, height } = await letterbox(thumb);
   const base = top + bottom > 0 ? sharp(thumb).extract({ left: 0, top, width, height: height - top - bottom }) : sharp(thumb);
-  const resized = await base.resize(w, h, { fit: 'cover', position: 'centre' }).png().toBuffer();
+  return base.resize(w, h, { fit: 'cover', position: 'centre' });
+}
+
+// Fotogramma in scala di grigi tinto di verde (immagine nella pagina).
+async function tintedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> {
+  const resized = await (await croppedFrame(thumb, w, h)).png().toBuffer();
   return sharp(resized).greyscale().tint(GREEN);
 }
 
 // Fotogramma tinto per l'anteprima, già in RGB: luminanza del grigio sul verde del fosforo, con le
 // luci più forti che virano appena al bianco come un fosforo saturo.
 async function phosphorFrame(thumb: Buffer): Promise<Buffer> {
-  const grey = await (await tintedFrame(thumb, OG_W, OG_H)).greyscale().raw().toBuffer();
+  // un solo canale, la luminanza: l'alfa (se c'è) è tolto prima della scala di grigi
+  const { data: grey, info } = await (await croppedFrame(thumb, OG_W, OG_H))
+    .removeAlpha()
+    .greyscale()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  if (info.channels !== 1) throw new Error(`fotogramma in scala di grigi con ${info.channels} canali invece di 1`);
   const rgb = Buffer.alloc(OG_W * OG_H * 3);
   for (let p = 0; p < OG_W * OG_H; p++) {
     const v = grey[p] / 255;

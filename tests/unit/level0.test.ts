@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { cmdToUrl, homeBlocks, level0Html, promptCommand } from '../../src/lib/level0';
 import { siteSchema } from '../../src/lib/schema';
-import { OG_MARGIN, OG_W, barrel, cardLayout, letterbox, ogImage, songImage, textWidth } from '../../src/lib/cards';
+import { BEZEL, OG_MARGIN, OG_W, RIM, barrel, cardLayout, letterbox, ogImage, openingDistance, songImage, textWidth } from '../../src/lib/cards';
 
 describe('cmdToUrl', () => {
   it('traduce cat e cd in URL senza barra finale', () => {
@@ -92,26 +92,46 @@ describe('immagini', () => {
   it('il fotogramma riempie la scheda: niente bande nere in alto e in basso', async () => {
     const thumb = await letterboxed();
     const og = await ogImage({ title: 'T', subtitle: 'A', host: 'h' }, thumb);
-    // le prime righe del raster curvo, al centro, sono fotogramma e non letterbox
-    for (const y of [50, 52, 54, 315]) expect(await rowMeanInside(og, y)).toBeGreaterThan(40);
+    // le prime righe del vetro, sotto la cornice e la sua ombra, sono fotogramma e non letterbox
+    for (const y of [66, 72, 80, 315]) expect(await rowMeanInside(og, y)).toBeGreaterThan(40);
     const frame = await songImage({ title: 'T', host: 'h' }, thumb);
     for (const y of [0, 1, 358, 359]) expect(await rowMean(frame, y)).toBeGreaterThan(40);
   });
-  it('effetti CRT: stessa scheda, stessi byte; angoli del colore del tubo', async () => {
+  // plastica della cornice: grigio caldo (r >= g >= b), nella gamma di luminosità della plastica e del labbro
+  const lums = [BEZEL.top, BEZEL.bottom, BEZEL.lip].map(([r, g, b]) => (r + g + b) / 3);
+  const isPlastic = ([r, g, b]: number[]) =>
+    r >= g - 1 && g >= b - 1 && (r + g + b) / 3 >= Math.min(...lums) * 0.6 && (r + g + b) / 3 <= Math.max(...lums) * 1.15;
+  const isGreen = ([r, g, b]: number[]) => g > r + 4 && g > b;
+  it('effetti CRT: opache, stessi byte; angoli di plastica, centro nel vetro, nessun filo verde', async () => {
     const t = { title: 'Perché più città', subtitle: 'A', host: 'h' };
     const thumb = await letterboxed();
     for (const make of [() => ogImage(t, null, 'x/y'), () => ogImage(t, thumb, 'canzoni/z')]) {
       const a = await make();
       expect(Buffer.compare(a, await make())).toBe(0);
+      const m = await sharp(a).metadata();
+      expect([m.width, m.height, m.hasAlpha]).toEqual([1200, 630, false]);
       const { data, info } = await sharp(a).removeAlpha().raw().toBuffer({ resolveWithObject: true });
       expect([info.width, info.height, info.channels]).toEqual([1200, 630, 3]);
-      for (const [x, y] of [[0, 0], [1199, 0], [0, 629], [1199, 629], [5, 5], [40, 40]]) {
-        const o = (y * info.width + x) * 3;
-        expect(Math.abs(data[o] - 5) + Math.abs(data[o + 1] - 8) + Math.abs(data[o + 2] - 6)).toBeLessThanOrEqual(6);
+      const px = (x: number, y: number) => Array.from(data.subarray((y * info.width + x) * 3, (y * info.width + x) * 3 + 3));
+      // angoli e fasce della cornice: plastica, non più il nero del tubo
+      for (const [x, y] of [[0, 0], [1199, 0], [0, 629], [1199, 629], [5, 5], [40, 40], [1160, 590], [20, 315], [600, 20], [600, 610]]) {
+        expect(isPlastic(px(x, y)), `(${x},${y}) = ${px(x, y)}`).toBe(true);
       }
+      // dove c'era il filo verde del vetro (rettangolo a 22 px dal bordo) ora c'è plastica
+      for (const [x, y] of [[300, 22], [600, 22], [900, 22], [22, 200], [22, 430], [1177, 315], [600, 607], [300, 607]]) {
+        const p = px(x, y);
+        expect(isGreen(p), `(${x},${y}) = ${p}`).toBe(false);
+        expect(isPlastic(p), `(${x},${y}) = ${p}`).toBe(true);
+      }
+      // il centro è dentro l'apertura: vetro a fosfori, verde
+      expect(isGreen(px(600, 315)), `centro = ${px(600, 315)}`).toBe(true);
     }
     // il seme cambia la grana
     expect(Buffer.compare(await ogImage(t, null, 'a'), await ogImage(t, null, 'b'))).not.toBe(0);
+  });
+  it('apertura: il centro è dentro, gli angoli della scheda fuori', () => {
+    expect(openingDistance(600, 315)).toBeLessThan(-250);
+    for (const [x, y] of [[0, 0], [1199, 0], [0, 629], [1199, 629]]) expect(openingDistance(x, y)).toBeGreaterThan(0);
   });
   it('curvatura: il centro resta fermo, gli angoli vanno verso l\'esterno', () => {
     expect(barrel(0, 0)).toEqual([0, 0]);
@@ -123,7 +143,7 @@ describe('immagini', () => {
     expect(b).toBeGreaterThan(0.25);
     expect(barrel(0.5, 0)[1]).toBe(0);
   });
-  it('titolo lungo: al massimo 2 righe, ellissi, dentro i margini', () => {
+  it('titolo lungo: al massimo 2 righe, ellissi, dentro i margini e dentro il vetro', () => {
     const title = 'Perché più città sognano ancora: un titolo lunghissimo con accenti che non ci sta';
     for (const withFrame of [false, true]) {
       const lines = cardLayout({ title, subtitle: 'Artista '.repeat(10), host: 'example.com' }, withFrame);
@@ -134,6 +154,12 @@ describe('immagini', () => {
         expect(l.x).toBeGreaterThanOrEqual(OG_MARGIN);
         expect(l.x + textWidth(l.text, l.size, l.weight)).toBeLessThanOrEqual(OG_W - OG_MARGIN);
         expect(l.y).toBeLessThan(630 - 40);
+        // il riquadro della riga (dalla cima delle maiuscole alle discendenti) sta nel vetro,
+        // lontano dall'incavo e dall'ombra interna
+        const right = l.x + textWidth(l.text, l.size, l.weight);
+        for (const [x, y] of [[l.x, l.y - l.size * 0.8], [right, l.y - l.size * 0.8], [l.x, l.y + l.size * 0.25], [right, l.y + l.size * 0.25]]) {
+          expect(openingDistance(x, y)).toBeLessThan(-3 * RIM);
+        }
       }
     }
   });
