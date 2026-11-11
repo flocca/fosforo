@@ -8,7 +8,8 @@
  * - .term-prompt[hidden] (prompt nascosto durante il boot)
  * - .term, .dim, .bold, .inverse, .ph-img
  * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
- * - .power-button, .phosphor-button, .led.is-on, .sound-indicator, .chips
+ * - .power-button, .phosphor-button, .led.is-on, .sound-button (tasto fisico del suono, aria-label
+ *   "Suono acceso|spento"), .sound-state (etichetta di stato, non interattiva), .chips
  */
 
 /* ── fosfori ─────────────────────────────────────────────────────────────── */
@@ -472,30 +473,11 @@ body {
   text-shadow: 0 1px 0 #0008, 0 -1px 0 #5a524433;
 }
 
-.sound-indicator {
+.sound-state {
   padding: 4px 2px;
-  border: 0;
-  border-radius: 2px;
-  background: none;
-  color: inherit;
-  font: inherit;
   letter-spacing: 0.08em;
   white-space: nowrap;
   opacity: 0.85;
-  cursor: pointer;
-}
-
-.sound-indicator:not(:disabled):hover {
-  opacity: 1;
-}
-
-.sound-indicator:disabled {
-  cursor: default;
-}
-
-.sound-indicator:focus-visible {
-  outline: 2px solid var(--ph);
-  outline-offset: 2px;
 }
 
 .led {
@@ -522,7 +504,8 @@ body {
 
 /* tasti fisici del pannello: interruttore e selettore dei fosfori, stessa plastica */
 .power-button,
-.phosphor-button {
+.phosphor-button,
+.sound-button {
   flex: none;
   position: relative;
   width: 34px;
@@ -569,7 +552,8 @@ body {
 }
 
 .power-button:disabled,
-.phosphor-button:disabled {
+.phosphor-button:disabled,
+.sound-button:disabled {
   cursor: default;
 }
 
@@ -589,8 +573,41 @@ body {
     0 0 6px var(--ph-glow);
 }
 
+/* tasto del suono: altoparlante inciso, con onde da acceso e barrato da spento */
+.sound-button svg {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 14px;
+  margin: -7px 0 0 -10px;
+  fill: #6b6253;
+  stroke: #6b6253;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.sound-button .waves,
+.sound-button .cross {
+  fill: none;
+}
+
+.sound-button .cross {
+  display: none;
+}
+
+.sound-button[aria-pressed='false'] .waves {
+  display: none;
+}
+
+.sound-button[aria-pressed='false'] .cross {
+  display: inline;
+}
+
 .power-button:not(:disabled):active,
-.phosphor-button:not(:disabled):active {
+.phosphor-button:not(:disabled):active,
+.sound-button:not(:disabled):active {
   transform: translateY(2px);
   box-shadow:
     0 1px 0 #5e5647,
@@ -600,7 +617,8 @@ body {
 }
 
 .power-button:focus-visible,
-.phosphor-button:focus-visible {
+.phosphor-button:focus-visible,
+.sound-button:focus-visible {
   outline: 2px solid var(--ph);
   outline-offset: 3px;
 }
@@ -653,6 +671,11 @@ body {
   .monitor-label {
     letter-spacing: 0.2em;
   }
+
+  /* sul telefono lo stato del suono lo mostra il tasto */
+  .sound-state {
+    display: none;
+  }
 }
 
 @media (max-width: 360px) {
@@ -660,7 +683,7 @@ body {
     display: none;
   }
 
-  .sound-indicator {
+  .led {
     margin-right: auto;
   }
 }
@@ -679,7 +702,8 @@ body {
   }
 
   .power-button,
-  .phosphor-button {
+  .phosphor-button,
+  .sound-button {
     transition: none;
   }
 }

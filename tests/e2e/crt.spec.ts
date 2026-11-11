@@ -15,11 +15,12 @@ test('un valore sconosciuto nello storage lascia il verde', async ({ page }) => 
   await expect(page.locator('html')).toHaveAttribute('data-fosfori', 'verde');
 });
 
-test('il monitor ha interruttore, LED e indicatore del suono', async ({ page }) => {
+test('il monitor ha interruttore, LED, tasto e etichetta del suono', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Accendi' })).toBeVisible();
   await expect(page.locator('.led')).toHaveCount(1);
-  await expect(page.locator('.sound-indicator')).toHaveText('suono: acceso');
+  await expect(page.locator('.sound-state')).toHaveText('suono: acceso');
+  await expect(page.getByRole('button', { name: 'Suono acceso' })).toBeVisible();
   await expect(page.locator('.screen #screen .term')).toHaveCount(1);
 });
 
@@ -42,8 +43,44 @@ test.describe('telefono a 320 px', () => {
   }
 });
 
+test.describe('telefono a 320 px: pannello', () => {
+  test.use({ viewport: { width: 320, height: 640 } });
+
+  test('i tre tasti sono visibili su una riga e il tasto del suono funziona', async ({ page }) => {
+    await page.goto('/chi-sono');
+    const sound = page.getByRole('button', { name: 'Suono acceso' });
+    await expect(sound).toBeVisible();
+    const boxes = [];
+    for (const sel of ['.sound-button', '.phosphor-button', '.power-button']) {
+      const box = await page.locator(sel).boundingBox();
+      expect(box).not.toBeNull();
+      boxes.push(box!);
+    }
+    for (const b of boxes) {
+      expect(b.x).toBeGreaterThanOrEqual(0);
+      expect(b.x + b.width).toBeLessThanOrEqual(320);
+      expect(Math.abs(b.y - boxes[0].y)).toBeLessThan(2);
+    }
+    expect(boxes[2].x).toBeGreaterThan(boxes[1].x); // l'interruttore è a destra
+    await sound.click();
+    await expect(page.getByRole('button', { name: 'Suono spento' })).toBeVisible();
+    const { sw, cw } = await page.evaluate(() => ({
+      sw: document.documentElement.scrollWidth,
+      cw: document.documentElement.clientWidth,
+    }));
+    expect(sw).toBeLessThanOrEqual(cw);
+  });
+});
+
 test.describe('senza JavaScript', () => {
   test.use({ javaScriptEnabled: false });
+
+  test('i tasti del pannello sono disabilitati', async ({ page }) => {
+    await page.goto('/chi-sono');
+    await expect(page.locator('.sound-button')).toBeDisabled();
+    await expect(page.locator('.phosphor-button')).toBeDisabled();
+    await expect(page.locator('.power-button')).toBeDisabled();
+  });
 
   test('il verde è lo stile predefinito', async ({ page }) => {
     await page.goto('/chi-sono');

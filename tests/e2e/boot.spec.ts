@@ -220,7 +220,8 @@ async function countAudioContexts(page: Page) {
   });
 }
 const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
-const soundButton = (page: Page) => page.locator('.sound-indicator');
+const soundState = (page: Page) => page.locator('.sound-state');
+const soundButton = (page: Page, on: boolean) => page.getByRole('button', { name: on ? 'Suono acceso' : 'Suono spento' });
 
 test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', async ({ page }) => {
   await today(page);
@@ -228,7 +229,7 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'suono: acceso' })).toBeEnabled();
+  await expect(soundButton(page, true)).toBeEnabled();
   // a monitor spento nessun contesto audio
   expect(await audioContexts(page)).toBe(0);
   await powerButton(page).click();
@@ -236,53 +237,53 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await page.keyboard.press('x');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundButton(page)).toHaveText('suono: acceso');
+  await expect(soundState(page)).toHaveText('suono: acceso');
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
-  await expect(page.getByRole('button', { name: 'suono: spento' })).toBeVisible();
+  await expect(soundButton(page, false)).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
 
   await page.reload();
-  await expect(soundButton(page)).toHaveText('suono: spento');
+  await expect(soundState(page)).toHaveText('suono: spento');
   await powerButton(page).click();
   // il contesto nasce lo stesso (muto), così `suono` lo riaccende senza un altro gesto
   expect(await audioContexts(page)).toBe(1);
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await page.keyboard.press('x');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundButton(page)).toHaveText('suono: spento');
+  await expect(soundState(page)).toHaveText('suono: spento');
   await prompt(page).fill('suono acceso');
   await prompt(page).press('Enter');
-  await expect(soundButton(page)).toHaveText('suono: acceso');
+  await expect(soundState(page)).toHaveText('suono: acceso');
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBeNull();
   expect(errors).toEqual([]);
 });
 
-test('l\'indicatore del suono è un tasto: lo stesso effetto del comando, anche a monitor spento', async ({ page }) => {
+test('il tasto del suono ha lo stesso effetto del comando, anche a monitor spento, e la scelta resta dopo il ricaricamento', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'suono: acceso' }).click();
-  await expect(soundButton(page)).toHaveText('suono: spento');
+  await soundButton(page, true).click();
+  await expect(soundState(page)).toHaveText('suono: spento');
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
   // non accende il monitor
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
 
   await page.goto('/chi-sono');
-  await expect(soundButton(page)).toHaveText('suono: spento');
-  await page.getByRole('button', { name: 'suono: spento' }).click();
-  await expect(soundButton(page)).toHaveText('suono: acceso');
+  await expect(soundState(page)).toHaveText('suono: spento');
+  await soundButton(page, false).click();
+  await expect(soundState(page)).toHaveText('suono: acceso');
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
-  await expect(soundButton(page)).toHaveText('suono: spento');
+  await expect(soundState(page)).toHaveText('suono: spento');
 });
 
-test('link profondo: l\'audio parte al primo gesto, l\'indicatore mostra la preferenza', async ({ page }) => {
+test('link profondo: l\'audio parte al primo gesto, l\'etichetta mostra la preferenza', async ({ page }) => {
   await countAudioContexts(page);
   await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
   await page.goto('/chi-sono');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundButton(page)).toHaveText('suono: spento');
+  await expect(soundState(page)).toHaveText('suono: spento');
   expect(await audioContexts(page)).toBe(0);
   await page.keyboard.type('pwd');
   // un solo contesto, anche dopo molti tasti

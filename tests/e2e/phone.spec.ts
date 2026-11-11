@@ -36,7 +36,7 @@ test('accensione, comandi rapidi e navigazione a tocchi', async ({ page }) => {
   await chip(page, 'help').tap();
   await expect(output(page)).toContainText('questo elenco');
   await chip(page, 'suono').tap();
-  await expect(page.locator('.sound-indicator')).toHaveText('suono: spento');
+  await expect(page.getByRole('button', { name: 'Suono spento' })).toBeVisible();
   await expect(prompt(page)).not.toBeFocused();
 });
 

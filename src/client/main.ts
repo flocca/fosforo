@@ -44,20 +44,31 @@ function applyPhosphor(p: Phosphor) {
   if (button) button.title = `Fosfori: ${p}`;
 }
 
-// Stesso percorso del comando `suono` e dell'indicatore: l'indicatore mostra la
+// Stesso percorso del comando `suono` e del tasto del suono: etichetta e tasto mostrano la
 // preferenza del visitatore, anche quando l'audio non è ancora partito.
+function showSound(muted: boolean) {
+  const state = document.querySelector<HTMLElement>('.sound-state');
+  if (state) state.textContent = `suono: ${muted ? 'spento' : 'acceso'}`;
+  const button = document.querySelector<HTMLButtonElement>('.sound-button');
+  if (button) {
+    const name = muted ? 'Suono spento' : 'Suono acceso';
+    button.setAttribute('aria-label', name);
+    button.title = name;
+    button.setAttribute('aria-pressed', String(!muted));
+  }
+}
+
 function applySound(muted: boolean) {
   audio.setMuted(muted);
   prefs.setSoundOff(muted);
-  const button = document.querySelector<HTMLButtonElement>('.sound-indicator');
-  if (button) button.textContent = `suono: ${muted ? 'spento' : 'acceso'}`;
+  showSound(muted);
 }
 
-// L'indicatore funziona subito, come il selettore dei fosfori: cambia il suono senza scrivere nel terminale.
+// Il tasto funziona subito, come il selettore dei fosfori: cambia il suono senza scrivere nel terminale.
 function initSoundButton() {
-  const button = document.querySelector<HTMLButtonElement>('.sound-indicator');
+  const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (!button) return;
-  button.textContent = `suono: ${audio.muted ? 'spento' : 'acceso'}`;
+  showSound(audio.muted);
   button.disabled = false;
   button.addEventListener('click', () => applySound(!audio.muted));
 }
