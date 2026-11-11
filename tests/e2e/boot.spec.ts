@@ -205,6 +205,93 @@ test('il selettore dei fosfori: verde, ambra, bianco, verde, e resta dopo il ric
   await expect(output(page)).toContainText('Fosfori: ambra.');
 });
 
+// Conta i contesti audio creati, senza dipendere dall'uscita audio vera.
+async function countAudioContexts(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { audioContexts: AudioContext[]; AudioContext: typeof AudioContext };
+    w.audioContexts = [];
+    const Real = w.AudioContext;
+    w.AudioContext = class extends Real {
+      constructor(opts?: AudioContextOptions) {
+        super(opts);
+        w.audioContexts.push(this);
+      }
+    };
+  });
+}
+const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
+const soundButton = (page: Page) => page.locator('.sound-indicator');
+
+test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', async ({ page }) => {
+  await today(page);
+  await countAudioContexts(page);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'suono: acceso' })).toBeEnabled();
+  // a monitor spento nessun contesto audio
+  expect(await audioContexts(page)).toBe(0);
+  await powerButton(page).click();
+  expect(await audioContexts(page)).toBe(1);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  await page.keyboard.press('x');
+  await expect(prompt(page)).toBeFocused();
+  await expect(soundButton(page)).toHaveText('suono: acceso');
+  await prompt(page).fill('suono');
+  await prompt(page).press('Enter');
+  await expect(output(page)).toContainText('Suono spento.');
+  await expect(page.getByRole('button', { name: 'suono: spento' })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
+
+  await page.reload();
+  await expect(soundButton(page)).toHaveText('suono: spento');
+  await powerButton(page).click();
+  // il contesto nasce lo stesso (muto), così `suono` lo riaccende senza un altro gesto
+  expect(await audioContexts(page)).toBe(1);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  await page.keyboard.press('x');
+  await expect(prompt(page)).toBeFocused();
+  await expect(soundButton(page)).toHaveText('suono: spento');
+  await prompt(page).fill('suono acceso');
+  await prompt(page).press('Enter');
+  await expect(soundButton(page)).toHaveText('suono: acceso');
+  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBeNull();
+  expect(errors).toEqual([]);
+});
+
+test('l\'indicatore del suono è un tasto: lo stesso effetto del comando, anche a monitor spento', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'suono: acceso' }).click();
+  await expect(soundButton(page)).toHaveText('suono: spento');
+  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
+  // non accende il monitor
+  await expect(page.locator('.screen')).toHaveClass(/is-off/);
+
+  await page.goto('/chi-sono');
+  await expect(soundButton(page)).toHaveText('suono: spento');
+  await page.getByRole('button', { name: 'suono: spento' }).click();
+  await expect(soundButton(page)).toHaveText('suono: acceso');
+  await prompt(page).fill('suono');
+  await prompt(page).press('Enter');
+  await expect(output(page)).toContainText('Suono spento.');
+  await expect(soundButton(page)).toHaveText('suono: spento');
+});
+
+test('link profondo: l\'audio parte al primo gesto, l\'indicatore mostra la preferenza', async ({ page }) => {
+  await countAudioContexts(page);
+  await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
+  await page.goto('/chi-sono');
+  await expect(prompt(page)).toBeFocused();
+  await expect(soundButton(page)).toHaveText('suono: spento');
+  expect(await audioContexts(page)).toBe(0);
+  await page.keyboard.type('pwd');
+  // un solo contesto, anche dopo molti tasti
+  expect(await audioContexts(page)).toBe(1);
+  await page.keyboard.press('Enter');
+  await page.mouse.click(5, 5);
+  expect(await audioContexts(page)).toBe(1);
+});
+
 test.describe('telefono a 320 px', () => {
   test.use({ viewport: { width: 320, height: 640 }, hasTouch: true, isMobile: true });
 

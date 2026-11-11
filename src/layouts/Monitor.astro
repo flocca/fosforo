@@ -70,7 +70,7 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
       </div>
       <div class="monitor-panel">
         <span class="monitor-label" aria-hidden="true">{label}</span>
-        <span class="sound-indicator">suono: acceso</span>
+        <button type="button" class="sound-indicator" title="Accendi o spegni il suono" disabled>suono: acceso</button>
         <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled></button>
         <span class="led is-on" aria-hidden="true"></span>
         <!-- senza JavaScript i tasti restano disabilitati: lo schermo mostra già il livello 0 -->

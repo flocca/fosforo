@@ -4,6 +4,7 @@ import { localToday } from '../lib/dates';
 import { findByPath, type FsNode } from '../lib/fs-tree';
 import { promptCommand } from '../lib/level0';
 import type { SiteConfig } from '../lib/schema';
+import { createAudio } from './audio';
 import { decideStart, runBoot, welcomeSpans } from './boot';
 import { complete } from './complete';
 import { createHistory } from './history';
@@ -19,12 +20,9 @@ type SiteIndex = {
   latestSong?: { path: string; label: string; date: string };
 };
 
-// Suono: lo implementa il Task 9. `powerOn` va chiamato dentro il gestore del clic
-// (i browser permettono di creare l'audio solo lì); `diskSeek` è la testina del disco.
-const audio = {
-  powerOn() {},
-  diskSeek(_n: number) {},
-};
+// Il contesto audio nasce solo dentro un gesto: clic sull'interruttore, o il primo
+// tocco o tasto su un link profondo. Prima di allora `seek` non fa niente.
+const audio = createAudio();
 
 const parentOf = (path: string) => path.split('/').slice(0, -1).join('/');
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -45,6 +43,32 @@ function applyPhosphor(p: Phosphor) {
   if (button) button.title = `Fosfori: ${p}`;
 }
 
+// Stesso percorso del comando `suono` e dell'indicatore: l'indicatore mostra la
+// preferenza del visitatore, anche quando l'audio non è ancora partito.
+function applySound(muted: boolean) {
+  audio.setMuted(muted);
+  prefs.setSoundOff(muted);
+  const button = document.querySelector<HTMLButtonElement>('.sound-indicator');
+  if (button) button.textContent = `suono: ${muted ? 'spento' : 'acceso'}`;
+}
+
+// L'indicatore funziona subito, come il selettore dei fosfori: cambia il suono senza scrivere nel terminale.
+function initSoundButton() {
+  const button = document.querySelector<HTMLButtonElement>('.sound-indicator');
+  if (!button) return;
+  button.textContent = `suono: ${audio.muted ? 'spento' : 'acceso'}`;
+  button.disabled = false;
+  button.addEventListener('click', () => applySound(!audio.muted));
+}
+
+// Pagina nascosta: il contesto si ferma; tornando visibile riparte (se non è muto).
+function initVisibility() {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) audio.suspend();
+    else audio.resume();
+  });
+}
+
 // Il selettore dei fosfori funziona subito, a monitor spento o acceso, anche senza indice.
 function initPhosphorButton() {
   const button = document.querySelector<HTMLButtonElement>('.phosphor-button');
@@ -59,6 +83,8 @@ function initPhosphorButton() {
 
 async function main() {
   initPhosphorButton();
+  initSoundButton();
+  initVisibility();
   const html = document.documentElement;
   const pre = document.querySelector<HTMLPreElement>('#screen pre.term');
   if (!pre) {
@@ -95,7 +121,6 @@ async function main() {
   });
 
   const promptLabel = (cwd: string) => `${site.user}@${site.host} ${cwd ? `~/${cwd}` : '~'} $ `;
-  const indicator = document.querySelector('.sound-indicator');
   const screenEl = document.querySelector<HTMLElement>('.screen')!;
   const led = document.querySelector('.led');
   const powerButton = document.querySelector<HTMLButtonElement>('.power-button');
@@ -145,17 +170,17 @@ async function main() {
     },
     setPhosphor: applyPhosphor,
     sound: {
-      muted: prefs.isSoundOff(),
-      setMuted(m) {
-        term.sound.muted = m;
-        prefs.setSoundOff(m);
-        if (indicator) indicator.textContent = `suono: ${m ? 'spento' : 'acceso'}`;
+      get muted() {
+        return audio.muted;
       },
+      setMuted: applySound,
     },
     // Schermo spento 400 ms, poi boot completo qualunque sia la data, dalla radice
     // (con il movimento ridotto l'avvio rapido).
     async reboot() {
       booting?.skip();
+      // a contesto già nato (qui non siamo dentro il gesto): relè e smagnetizzazione
+      if (audio.started) audio.powerOn();
       power = 'booting';
       setPowerButton(false);
       screen.clear();
@@ -166,10 +191,9 @@ async function main() {
       router.navigate('', 'push');
       await boot(reducedMotion() ? 'warm' : 'cold');
     },
-    diskSeek: (n) => audio.diskSeek(n),
+    diskSeek: (n) => audio.seek(n),
   };
   term.setCwd('');
-  if (indicator) indicator.textContent = `suono: ${term.sound.muted ? 'spento' : 'acceso'}`;
 
   const shell = createShell(root, term);
   const history = createHistory();
@@ -250,6 +274,17 @@ async function main() {
   // (non il secondo clic di un doppio clic che ha acceso).
   function skipBoot() {
     if (power === 'booting' && performance.now() - poweredAt > 250) booting?.skip();
+  }
+
+  // Link profondo: il primo tocco o tasto fa ripartire ventola e ronzio. I gesti dopo
+  // sbloccano il contesto se il browser l'ha lasciato sospeso (un tocco su iOS e Android
+  // non basta: serve il rilascio). La home aspetta l'interruttore.
+  const unlockAudio = () => {
+    if (audio.started) audio.resume();
+    else if (page !== 'home') audio.spinUp();
+  };
+  for (const type of ['pointerdown', 'keydown', 'pointerup', 'touchend']) {
+    document.addEventListener(type, unlockAudio, { capture: true, passive: true });
   }
 
   powerButton?.addEventListener('click', powerOn);
