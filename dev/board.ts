@@ -637,7 +637,7 @@ function renderVoice(v: VoiceId): HTMLElement {
     src.append(el('legend', {}, 'sorgente'));
     const opts: [Source, string, boolean][] = [
       ['nuovo', 'nuovo', true],
-      ['attuale', 'attuale', HAS_LEGACY.includes(v)],
+      ['attuale', 'vecchia (prima della fase 2)', HAS_LEGACY.includes(v)],
       ['registrazione', `registrazione (${clips.length})`, clips.length > 0],
     ];
     for (const [value, label, ok] of opts) {
@@ -703,7 +703,7 @@ function renderVoice(v: VoiceId): HTMLElement {
       body.append(el('h3', {}, 'accendi'), ...clipControls(v, clips, state.clips), el('h3', {}, 'spegni'), ...clipControls(v, clips, state.clipsOff));
     } else body.append(...clipControls(v, clips, state.clips));
   } else if (state.source[v] === 'attuale') {
-    body.append(el('p', { class: 'nota' }, 'Le voci di audio.ts così come sono oggi, senza mobile né cursori.'));
+    body.append(el('p', { class: 'nota' }, 'Le voci che audio.ts aveva prima della fase 2 (11 novembre), senza mobile né cursori.'));
   } else {
     for (const d of SCHEMA[v]) {
       const p = state.params[v];

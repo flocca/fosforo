@@ -1,7 +1,19 @@
-// Le voci attuali di src/client/audio.ts, copiate qui per il confronto A/B nel banco dei suoni.
-// Stessi grafi e livelli, ma con l'uscita a scelta e ogni voce separata. Solo sviluppo:
-// sparisce con la fase 2, quando audio.ts userà le voci nuove.
-import { LEVELS } from '../src/client/audio';
+// Le voci che src/client/audio.ts aveva prima della fase 2 (11 novembre), per il confronto
+// nel banco dei suoni: stessi grafi e livelli, con l'uscita a scelta e ogni voce separata.
+// Solo sviluppo; Giacomo vuole tenere il banco com'è.
+// livelli di audio.ts prima della fase 2 (11 novembre), per il confronto "vecchia" nel banco
+const LEVELS = {
+  master: 0.5,
+  fan: 0.13,
+  fanTone: 0.12,
+  hum: [0.012, 0.016, 0.009, 0.006, 0.003] as const, // 50, 100, 150, 250, 350 Hz
+  whine: 0.0015,
+  relay: 0.3,
+  thunk: 0.42,
+  degauss: 0.2,
+  drive: 0.03,
+  seek: 0.8,
+};
 
 export type Handle = { stop(at?: number): void };
 

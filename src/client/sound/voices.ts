@@ -354,11 +354,14 @@ export class Synth {
   }
 
   // --- tubo: crepitio dell'alta tensione e fischio del flyback ---
-  tube(p: Params, mains: number, at: number): Handle {
-    const crackle = this.buffers('crackle' + JSON.stringify(crackleSpec(p)), () => [
-      normalize(renderCrackle(crackleSpec(p), this.ctx.sampleRate, this.seed * 13)),
-    ]);
-    this.shot('crackle', crackle, at, p.crackle * 0.6, this.bus.direct, false);
+  /** `transients`: crepitio all'accensione e scintille allo spegnimento (no: solo il fischio). */
+  tube(p: Params, mains: number, at: number, transients = true): Handle {
+    if (transients) {
+      const crackle = this.buffers('crackle' + JSON.stringify(crackleSpec(p)), () => [
+        normalize(renderCrackle(crackleSpec(p), this.ctx.sampleRate, this.seed * 13)),
+      ]);
+      this.shot('crackle', crackle, at, p.crackle * 0.6, this.bus.direct, false);
+    }
 
     const whineGain = this.gain(0, this.bus.direct);
     whineGain.gain.setValueAtTime(0, at);
@@ -388,9 +391,11 @@ export class Synth {
         whineGain.gain.setValueAtTime(whineGain.gain.value, t);
         whineGain.gain.setTargetAtTime(0, t, 0.06);
         // allo spegnimento il tubo si scarica con qualche scintilla
-        const off: CrackleSpec = { ...crackleSpec(p), duration: 0.5, peakAt: 0.02, rate: p.crackleRate * 0.4 };
-        const b = this.buffers('crackle-off' + JSON.stringify(off), () => [normalize(renderCrackle(off, this.ctx.sampleRate, this.seed * 17))]);
-        this.shot('crackle-off', b, t, p.crackle * 0.35, this.bus.direct, false);
+        if (transients) {
+          const off: CrackleSpec = { ...crackleSpec(p), duration: 0.5, peakAt: 0.02, rate: p.crackleRate * 0.4 };
+          const b = this.buffers('crackle-off' + JSON.stringify(off), () => [normalize(renderCrackle(off, this.ctx.sampleRate, this.seed * 17))]);
+          this.shot('crackle-off', b, t, p.crackle * 0.35, this.bus.direct, false);
+        }
         for (const o of parts) o.stop(t + 0.6);
         drift.stop(t + 0.6);
       },

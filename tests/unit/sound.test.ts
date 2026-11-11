@@ -18,6 +18,7 @@ import {
   type ClickSpec,
 } from '../../src/client/sound/dsp';
 import { PROFILES, SCHEMA, VOICES } from '../../src/client/sound/profiles';
+import { findSegments } from '../../src/client/sound/sprite';
 import { buttonSpecs, crackleSpec, degaussSpec, relaySpec, stepSpec } from '../../src/client/sound/voices';
 import { soundBoard } from '../../dev/integration.mjs';
 
@@ -165,6 +166,26 @@ describe('dsp', () => {
     }
     expect(seen.size).toBe(6);
     expect(nextVariant(1, 0, r)).toBe(0);
+  });
+});
+
+describe('pezzi in un file solo', () => {
+  it('trova i pezzi separati dal silenzio, anche con il rumore della codifica', () => {
+    const sr = 8000;
+    const d = new Float32Array(sr); // 1 s
+    const fill = (a: number, b: number, amp: number) => {
+      for (let i = Math.round(a * sr); i < Math.round(b * sr); i++) d[i] = amp * (i % 2 ? 1 : -1);
+    };
+    fill(0.1, 0.18, 0.01); // un passo debole (-40 dB)
+    fill(0.3, 0.6, 0.02);
+    fill(0.35, 0.36, 0); // un buco di 10 ms dentro un pezzo: resta un pezzo solo
+    for (let i = 0; i < d.length; i++) d[i] += (i % 3 ? 1 : -1) * 5e-4; // rumore della codifica nei silenzi: Opus arriva fra -80 e -66 dB
+    const segs = findSegments(d, sr);
+    expect(segs).toHaveLength(2);
+    expect(segs[0].start).toBeCloseTo(0.1, 2);
+    expect(segs[0].end).toBeCloseTo(0.18, 2);
+    expect(segs[1].start).toBeCloseTo(0.3, 2);
+    expect(segs[1].end).toBeCloseTo(0.6, 2);
   });
 });
 

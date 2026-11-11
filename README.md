@@ -130,6 +130,12 @@ boot:
 
 Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot, `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
 
+## Suono
+
+Il suono parte solo dopo un gesto (l'interruttore, o il primo tocco su un link profondo) e si spegne con il tasto o con il comando `suono`. È in parte sintetizzato (ronzio del trasformatore, tubo che si accende, ventola, risonanza del mobile) e in parte registrato: l'interruttore, i tasti della cornice e il floppy. Le registrazioni stanno in `src/client/sound/registrazioni/` e si scaricano dopo il gesto; i valori scelti sono in `src/client/sound/preset.ts`.
+
+In sviluppo, `npm run dev` e poi `/_suoni` apre il banco dei suoni: si ascoltano e si regolano le voci, si confrontano con registrazioni di terzi, si salvano le configurazioni in `dev/scelte/`. Il banco non finisce mai nella build. `dev/scarica-suoni.sh` scarica le registrazioni di confronto in `.cache/suoni/`; `dev/ritaglia-suoni.sh` ne taglia i pezzi usati dal sito.
+
 ## Test
 
 `npm run check` esegue il controllo dei tipi e i test unitari. `npx playwright test` costruisce il sito, lo serve su una porta sua e lo chiude alla fine (non riusa mai un server già acceso).
@@ -139,3 +145,9 @@ I confronti visivi di `tests/e2e/look.spec.ts` girano solo con `PW_VISUAL=1`. Le
 ## Licenza e crediti
 
 GPL-3.0, testo completo in `LICENSE`. Il look a fosfori CRT prende come riferimento visivo [cool-retro-term](https://github.com/Swordfish90/cool-retro-term) di Swordfish90 (GPL-3.0); l'idea del sito come terminale è ispirata da remojansen.com. Il font è Fira Mono, distribuito con `@fontsource` (SIL Open Font License).
+
+Le registrazioni in `src/client/sound/registrazioni/` non sono GPL: restano sotto la loro licenza e sono tagliate e ricodificate.
+
+- "Floppy disk drive - read" e "Floppy disk drive - write" di MrAuralization, [freesound.org/s/259292](https://freesound.org/s/259292/) e [freesound.org/s/259291](https://freesound.org/s/259291/), licenza [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- "Old PC startup, idle & shutdown" di nakkivene66 (interruttore di un IBM PC 5150), [freesound.org/s/551405](https://freesound.org/s/551405/), CC0 1.0.
+- "Analog TV Switches" di CHallSmith (tasti della cornice), [freesound.org/s/870771](https://freesound.org/s/870771/), CC0 1.0.

@@ -69,7 +69,13 @@ function initSoundButton() {
   if (!button) return;
   showSound(audio.muted);
   button.disabled = false;
-  button.addEventListener('click', () => applySound(!audio.muted));
+  // il clic del tasto si sente: prima di spegnere il suono, o appena riacceso
+  button.addEventListener('click', () => {
+    const muting = !audio.muted;
+    if (muting) audio.press();
+    applySound(muting);
+    if (!muting) audio.press();
+  });
 }
 
 // Pagina nascosta: il contesto si ferma; tornando visibile riparte (se non è muto).
@@ -87,6 +93,7 @@ function initPhosphorButton() {
   button.title = `Fosfori: ${currentPhosphor()}`;
   button.disabled = false;
   button.addEventListener('click', () => {
+    audio.press();
     const i = PHOSPHORS.indexOf(currentPhosphor());
     applyPhosphor(PHOSPHORS[(i + 1) % PHOSPHORS.length]);
   });
@@ -213,7 +220,7 @@ async function main() {
     // (con il movimento ridotto l'avvio rapido).
     async reboot() {
       booting?.skip();
-      // a contesto già nato (qui non siamo dentro il gesto): relè e smagnetizzazione
+      // a contesto già nato (qui non siamo dentro il gesto): l'interruttore scatta, il tubo si spegne e si riaccende
       if (audio.started) audio.powerOn();
       power = 'booting';
       setPowerButton(false);
