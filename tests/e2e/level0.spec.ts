@@ -73,3 +73,20 @@ test('meta Open Graph nell HTML statico', async ({ page }) => {
   await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
   await expect(page.locator('html')).toHaveAttribute('lang', 'it');
 });
+
+test.describe('404 con JavaScript', () => {
+  test.use({ javaScriptEnabled: true });
+
+  test('un libro inesistente rimanda a /lettura e mostra il percorso', async ({ page }) => {
+    await page.goto('/lettura/libro-che-non-esiste');
+    await expect(page.locator('#screen')).toContainText('cat: /lettura/libro-che-non-esiste: file o cartella inesistente');
+    await expect(page.locator('#back')).toHaveAttribute('href', '/lettura');
+    await expect(page.locator('#back')).toHaveText('ls /lettura');
+  });
+
+  test('un altro percorso inesistente rimanda alla home', async ({ page }) => {
+    await page.goto('/post/non-c-e');
+    await expect(page.locator('#screen')).toContainText('cat: /post/non-c-e: file o cartella inesistente');
+    await expect(page.locator('#back')).toHaveAttribute('href', '/');
+  });
+});
