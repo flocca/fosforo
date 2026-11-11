@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { cmdToUrl, homeBlocks, level0Html, promptCommand } from '../../src/lib/level0';
 import { siteSchema } from '../../src/lib/schema';
-import { ogImage, songImage } from '../../src/lib/cards';
+import { OG_MARGIN, OG_W, cardLayout, letterbox, ogImage, songImage, textWidth } from '../../src/lib/cards';
 
 describe('cmdToUrl', () => {
   it('traduce cat e cd in URL senza barra finale', () => {
@@ -52,6 +52,56 @@ describe('immagini', () => {
     }
     const og = await sharp(await ogImage(t, thumb)).metadata();
     expect([og.width, og.height]).toEqual([1200, 630]);
+  });
+  // Miniatura 4:3 con bande nere sopra e sotto (come hqdefault di YouTube), contenuto grigio medio.
+  const letterboxed = () =>
+    sharp({ create: { width: 480, height: 270, channels: 3, background: '#888' } })
+      .extend({ top: 45, bottom: 45, background: '#000' })
+      .jpeg()
+      .toBuffer();
+  const rowMean = async (png: Buffer, y: number) => {
+    const { data, info } = await sharp(png).greyscale().raw().toBuffer({ resolveWithObject: true });
+    let sum = 0;
+    for (let x = 0; x < info.width; x++) sum += data[(y * info.width + x) * info.channels];
+    return sum / info.width;
+  };
+  it('anteprime opache, senza canale alfa', async () => {
+    const t = { title: 'T', subtitle: 'A', host: 'h' };
+    for (const png of [await ogImage(t), await ogImage(t, await letterboxed()), await songImage(t, null)]) {
+      const m = await sharp(png).metadata();
+      expect(m.hasAlpha).toBe(false);
+      expect(m.channels).toBe(3);
+    }
+  });
+  it('trova le bande nere della miniatura', async () => {
+    const b = await letterbox(await letterboxed());
+    expect(b.top).toBeGreaterThanOrEqual(45);
+    expect(b.top).toBeLessThanOrEqual(50);
+    expect(b.bottom).toBeGreaterThanOrEqual(45);
+    expect(b.bottom).toBeLessThanOrEqual(50);
+    const plain = await sharp({ create: { width: 480, height: 270, channels: 3, background: '#888' } }).jpeg().toBuffer();
+    expect(await letterbox(plain)).toMatchObject({ top: 0, bottom: 0 });
+  });
+  it('il fotogramma riempie la scheda: niente bande nere in alto e in basso', async () => {
+    const thumb = await letterboxed();
+    const og = await ogImage({ title: 'T', subtitle: 'A', host: 'h' }, thumb);
+    for (const y of [0, 1, 2]) expect(await rowMean(og, y)).toBeGreaterThan(40);
+    const frame = await songImage({ title: 'T', host: 'h' }, thumb);
+    for (const y of [0, 1, 358, 359]) expect(await rowMean(frame, y)).toBeGreaterThan(40);
+  });
+  it('titolo lungo: al massimo 2 righe, ellissi, dentro i margini', () => {
+    const title = 'Perché più città sognano ancora: un titolo lunghissimo con accenti che non ci sta';
+    for (const withFrame of [false, true]) {
+      const lines = cardLayout({ title, subtitle: 'Artista '.repeat(10), host: 'example.com' }, withFrame);
+      const titleLines = lines.filter((l) => l.size === 64);
+      expect(titleLines).toHaveLength(2);
+      expect(titleLines[1].text.endsWith('…')).toBe(true);
+      for (const l of lines) {
+        expect(l.x).toBeGreaterThanOrEqual(OG_MARGIN);
+        expect(l.x + textWidth(l.text, l.size, l.weight)).toBeLessThanOrEqual(OG_W - OG_MARGIN);
+        expect(l.y).toBeLessThan(630 - 40);
+      }
+    }
   });
 });
 
