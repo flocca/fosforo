@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { cmdToUrl, homeBlocks, level0Html, promptCommand } from '../../src/lib/level0';
 import { siteSchema } from '../../src/lib/schema';
-import { OG_MARGIN, OG_W, cardLayout, letterbox, ogImage, songImage, textWidth } from '../../src/lib/cards';
+import { OG_MARGIN, OG_W, barrel, cardLayout, letterbox, ogImage, songImage, textWidth } from '../../src/lib/cards';
 
 describe('cmdToUrl', () => {
   it('traduce cat e cd in URL senza barra finale', () => {
@@ -82,12 +82,46 @@ describe('immagini', () => {
     const plain = await sharp({ create: { width: 480, height: 270, channels: 3, background: '#888' } }).jpeg().toBuffer();
     expect(await letterbox(plain)).toMatchObject({ top: 0, bottom: 0 });
   });
+  // media di una riga solo nella parte centrale, dentro il tubo (la curvatura scurisce i bordi)
+  const rowMeanInside = async (png: Buffer, y: number) => {
+    const { data, info } = await sharp(png).greyscale().raw().toBuffer({ resolveWithObject: true });
+    let sum = 0;
+    for (let x = 300; x < 900; x++) sum += data[(y * info.width + x) * info.channels];
+    return sum / 600;
+  };
   it('il fotogramma riempie la scheda: niente bande nere in alto e in basso', async () => {
     const thumb = await letterboxed();
     const og = await ogImage({ title: 'T', subtitle: 'A', host: 'h' }, thumb);
-    for (const y of [0, 1, 2]) expect(await rowMean(og, y)).toBeGreaterThan(40);
+    // le prime righe del raster curvo, al centro, sono fotogramma e non letterbox
+    for (const y of [50, 52, 54, 315]) expect(await rowMeanInside(og, y)).toBeGreaterThan(40);
     const frame = await songImage({ title: 'T', host: 'h' }, thumb);
     for (const y of [0, 1, 358, 359]) expect(await rowMean(frame, y)).toBeGreaterThan(40);
+  });
+  it('effetti CRT: stessa scheda, stessi byte; angoli del colore del tubo', async () => {
+    const t = { title: 'Perché più città', subtitle: 'A', host: 'h' };
+    const thumb = await letterboxed();
+    for (const make of [() => ogImage(t, null, 'x/y'), () => ogImage(t, thumb, 'canzoni/z')]) {
+      const a = await make();
+      expect(Buffer.compare(a, await make())).toBe(0);
+      const { data, info } = await sharp(a).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      expect([info.width, info.height, info.channels]).toEqual([1200, 630, 3]);
+      for (const [x, y] of [[0, 0], [1199, 0], [0, 629], [1199, 629], [5, 5], [40, 40]]) {
+        const o = (y * info.width + x) * 3;
+        expect(Math.abs(data[o] - 5) + Math.abs(data[o + 1] - 8) + Math.abs(data[o + 2] - 6)).toBeLessThanOrEqual(6);
+      }
+    }
+    // il seme cambia la grana
+    expect(Buffer.compare(await ogImage(t, null, 'a'), await ogImage(t, null, 'b'))).not.toBe(0);
+  });
+  it('curvatura: il centro resta fermo, gli angoli vanno verso l\'esterno', () => {
+    expect(barrel(0, 0)).toEqual([0, 0]);
+    const [u, v] = barrel(1, 1);
+    expect(u).toBeGreaterThan(1);
+    expect(v).toBeGreaterThan(1);
+    const [a, b] = barrel(-0.5, 0.25);
+    expect(a).toBeLessThan(-0.5);
+    expect(b).toBeGreaterThan(0.25);
+    expect(barrel(0.5, 0)[1]).toBe(0);
   });
   it('titolo lungo: al massimo 2 righe, ellissi, dentro i margini', () => {
     const title = 'Perché più città sognano ancora: un titolo lunghissimo con accenti che non ci sta';

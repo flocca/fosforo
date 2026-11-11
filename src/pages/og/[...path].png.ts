@@ -25,13 +25,13 @@ export const GET: APIRoute = async ({ params }) => {
   if (item?.kind === 'song') {
     const id = item.data.links.youtube ? youtubeId(item.data.links.youtube) : null;
     const thumb = id ? await fetchThumbnail(id) : null;
-    body = await ogImage({ title: item.data.title, subtitle: item.data.artist, host }, thumb);
+    body = await ogImage({ title: item.data.title, subtitle: item.data.artist, host }, thumb, path);
   } else if (item) {
-    body = await ogImage({ title: item.data.title, host });
+    body = await ogImage({ title: item.data.title, host }, null, path);
   } else {
     const node = path === 'home' ? undefined : findByPath(store.root, path);
     const title = !node ? host : node.type === 'dir' ? `${node.name}/` : (node.title ?? node.name);
-    body = await ogImage({ title, host });
+    body = await ogImage({ title, host }, null, path);
   }
   return new Response(new Uint8Array(body), { headers: { 'content-type': 'image/png' } });
 };

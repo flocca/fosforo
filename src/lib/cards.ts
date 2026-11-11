@@ -136,29 +136,46 @@ const scanlines = (w: number, h: number) =>
 const svg = (w: number, h: number, body: string) =>
   Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`);
 
-// Testo come tracciati, con un alone sfocato sotto (il bagliore del fosforo).
-function textLayer(lines: CardLine[]): string {
+// Testo come tracciati; nella versione piatta (pagina) con un alone sfocato sotto. Nelle anteprime
+// social l'alone arriva dal passaggio CRT su pixel (`crtEffects`).
+function textLayer(lines: CardLine[], svgGlow: boolean): string {
   const paths = lines
     .map((l) => `<path d="${textPathData(l.text, l.x, l.y, l.size, l.weight)}" fill-opacity="${l.opacity}"/>`)
     .join('');
-  return (
-    `<defs><filter id="glow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="6"/></filter></defs>` +
-    `<g fill="${GREEN}" filter="url(#glow)" opacity="0.6">${paths}</g><g fill="${GREEN}">${paths}</g>`
-  );
+  const glow = svgGlow
+    ? `<defs><filter id="glow" x="-10%" y="-30%" width="120%" height="160%"><feGaussianBlur stdDeviation="6"/></filter></defs>` +
+      `<g fill="${GREEN}" filter="url(#glow)" opacity="0.6">${paths}</g>`
+    : '';
+  return `${glow}<g fill="${GREEN}">${paths}</g>`;
 }
 
-// Cornice del monitor disegnata dentro la scheda opaca: gli angoli dell'immagine restano pieni.
+// Vetro del monitor: rettangolo arrotondato dentro la scheda opaca, gli angoli dell'immagine restano pieni.
+const GLASS = { inset: 22, radius: 26 };
 const bezel = (w: number, h: number) =>
-  `<rect x="22" y="22" width="${w - 44}" height="${h - 44}" rx="26" fill="none" stroke="${GREEN}" stroke-opacity="0.35" stroke-width="3"/>`;
+  `<rect x="${GLASS.inset}" y="${GLASS.inset}" width="${w - 2 * GLASS.inset}" height="${h - 2 * GLASS.inset}" rx="${GLASS.radius}" fill="none" stroke="${GREEN}" stroke-opacity="0.35" stroke-width="3"/>`;
+// Tutto ciò che sta fuori dal vetro, pieno del colore del tubo (angoli squadrati e opachi).
+const outsideGlass = (w: number, h: number) => {
+  const i = GLASS.inset;
+  const r = GLASS.radius;
+  const inner = `M${i + r} ${i}H${w - i - r}A${r} ${r} 0 0 1 ${w - i} ${i + r}V${h - i - r}A${r} ${r} 0 0 1 ${w - i - r} ${h - i}H${i + r}A${r} ${r} 0 0 1 ${i} ${h - i - r}V${i + r}A${r} ${r} 0 0 1 ${i + r} ${i}Z`;
+  return `<path fill-rule="evenodd" fill="${BG}" d="M0 0H${w}V${h}H0Z${inner}"/>`;
+};
 
-function titleCardSvg(t: CardText): Buffer {
+const vignetteGradient = `<defs><radialGradient id="vg" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#0c1d12"/><stop offset="1" stop-color="${BG}"/></radialGradient>` +
+  `<radialGradient id="vr" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#10261a"/><stop offset="1" stop-color="#0a160e"/></radialGradient></defs>`;
+
+// `flat`: la versione per la pagina (scanline e cornice in SVG); altrimenti solo il contenuto,
+// a cui `crtEffects` aggiunge bagliore, scanline, disturbo, curvatura e cornice.
+function titleCardSvg(t: CardText, flat: boolean): Buffer {
+  const lines = cardLayout(t, false);
+  if (!flat) return svg(OG_W, OG_H, vignetteGradient + `<rect width="${OG_W}" height="${OG_H}" fill="url(#vr)"/>` + textLayer(lines, false));
   return svg(
     OG_W,
     OG_H,
-    `<defs><radialGradient id="vg" cx="0.5" cy="0.5" r="0.75"><stop offset="0" stop-color="#0c1d12"/><stop offset="1" stop-color="${BG}"/></radialGradient></defs>` +
+    vignetteGradient +
       `<rect width="${OG_W}" height="${OG_H}" fill="${BG}"/>` +
       `<rect x="22" y="22" width="${OG_W - 44}" height="${OG_H - 44}" rx="26" fill="url(#vg)"/>` +
-      textLayer(cardLayout(t, false)) +
+      textLayer(lines, true) +
       scanlines(OG_W, OG_H) +
       bezel(OG_W, OG_H),
   );
@@ -172,12 +189,139 @@ function frameOverlaySvg(t: CardText): Buffer {
       // il fotogramma un po' più scuro, come un fosforo a luminosità ridotta: il testo resta leggibile
       `<rect width="${OG_W}" height="${OG_H}" fill="${BG}" fill-opacity="0.3"/>` +
       `<rect width="${OG_W}" height="${OG_H}" fill="url(#sh)"/>` +
-      textLayer(cardLayout(t, true)) +
-      scanlines(OG_W, OG_H) +
-      bezel(OG_W, OG_H),
+      textLayer(cardLayout(t, true), false),
   );
 }
 
+// ── effetti CRT sulle anteprime social ──────────────────────────────────────────────────────────
+
+// Curvatura del tubo: un punto in coordinate normalizzate (centro 0, bordi ±1) va a prendere il
+// pixel sorgente più in fuori, tanto più quanto è lontano dal centro. Il centro resta fermo.
+export const BARREL_K = 0.1;
+export function barrel(u: number, v: number, k = BARREL_K): [number, number] {
+  const f = 1 + k * (u * u + v * v);
+  return [u * f, v * f];
+}
+
+// Generatore pseudocasuale con seme (mulberry32) e hash FNV-1a: stessa scheda, stessi pixel ovunque.
+function hash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+function prng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const BG_RGB = [5, 8, 6];
+const GREEN_RGB = [0x33, 0xff, 0x66];
+
+// Da scheda composta a foto di un vecchio schermo a fosfori: bagliore, scanline (una volta sola),
+// grana, banda di scansione, vignettatura, curvatura; sopra, nitida, la cornice del vetro.
+async function crtEffects(card: Buffer, seed: string): Promise<Buffer> {
+  const W = OG_W;
+  const H = OG_H;
+  const raw = { width: W, height: H, channels: 3 as const };
+  const src = await sharp(card).flatten({ background: BG }).removeAlpha().raw().toBuffer();
+  const n = W * H * 3;
+
+  // 1. bagliore: solo le parti chiare, sfocate e sommate in "screen" (come il text-shadow del sito)
+  const bright = Buffer.alloc(n);
+  for (let i = 0; i < n; i += 3) {
+    const l = 0.3 * src[i] + 0.59 * src[i + 1] + 0.11 * src[i + 2];
+    const m = l > 110 ? Math.min(1, (l - 110) / 70) : 0;
+    bright[i] = src[i] * m;
+    bright[i + 1] = src[i + 1] * m;
+    bright[i + 2] = src[i + 2] * m;
+  }
+  const halo = await sharp(bright, { raw }).blur(9).raw().toBuffer();
+  const rnd = prng(hash(seed));
+  const bandY = H * (0.2 + 0.6 * rnd());
+  const bandH = H * 0.12;
+  // grana a grani di 2x2 pixel e su pochi livelli: si vede come in foto e il PNG resta leggero
+  const gw = W / 2;
+  const grain = new Float32Array(gw * (H / 2));
+  for (let i = 0; i < grain.length; i++) {
+    const r = rnd();
+    grain[i] = r < 0.1 ? -5 : r > 0.9 ? 5 : 0;
+  }
+  const img = new Float32Array(n);
+  for (let y = 0; y < H; y++) {
+    // 2. scanline: 2 righe su 4 più scure, come il motivo SVG della pagina
+    const scan = y % 4 < 2 ? 0.74 : 1;
+    // 4. banda di scansione: una striscia appena più chiara
+    const d = (y - bandY) / bandH;
+    const band = 10 * Math.exp(-d * d);
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 3;
+      // 3. grana: rumore di luminanza a bassa ampiezza
+      for (let c = 0; c < 3; c++) {
+        const a = src[i + c] / 255;
+        const g = (halo[i + c] / 255) * 0.75;
+        const v = (1 - (1 - a) * (1 - g)) * 255 * scan;
+        img[i + c] = v + (band * GREEN_RGB[c]) / 255;
+      }
+    }
+  }
+
+  // 5. vignettatura e 6. curvatura, in un solo passaggio sull'immagine d'uscita
+  const out = Buffer.alloc(n);
+  const cx = (W - 1) / 2;
+  const cy = (H - 1) / 2;
+  const sample = (sx: number, sy: number, c: number) => {
+    const x0 = Math.floor(sx);
+    const y0 = Math.floor(sy);
+    const fx = sx - x0;
+    const fy = sy - y0;
+    const at = (x: number, y: number) => img[(y * W + x) * 3 + c];
+    return (
+      (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy
+    );
+  };
+  for (let y = 0; y < H; y++) {
+    const v = (y - cy) / cy;
+    for (let x = 0; x < W; x++) {
+      const u = (x - cx) / cx;
+      const [su, sv] = barrel(u, v);
+      const sx = su * cx + cx;
+      const sy = sv * cy + cy;
+      const o = (y * W + x) * 3;
+      if (sx < 0 || sy < 0 || sx > W - 2 || sy > H - 2) {
+        out[o] = BG_RGB[0];
+        out[o + 1] = BG_RGB[1];
+        out[o + 2] = BG_RGB[2];
+        continue;
+      }
+      const r = Math.sqrt(su * su * 0.8 + sv * sv * 0.8);
+      const t = Math.min(1, Math.max(0, (r - 0.45) / 0.75));
+      const vig = 1 - 0.6 * t * t * (3 - 2 * t);
+      const noise = grain[(y >> 1) * gw + (x >> 1)];
+      // riflesso della stanza sul vetro, in alto a sinistra (come `.screen-glass` del sito)
+      const gx = (u + 0.44) / 0.7;
+      const gy = (v + 0.76) / 0.45;
+      const glare = 9 * Math.max(0, 1 - gx * gx - gy * gy);
+      for (let c = 0; c < 3; c++) {
+        const val = BG_RGB[c] + (sample(sx, sy, c) - BG_RGB[c]) * vig + (noise * GREEN_RGB[c]) / 255 + glare;
+        out[o + c] = val < 0 ? 0 : val > 255 ? 255 : Math.round(val);
+      }
+    }
+  }
+
+  // PNG a tavolozza: con la grana un PNG a colori pieni supera i 400 KB (WhatsApp scarta le immagini pesanti)
+  const flat = await sharp(out, { raw })
+    .composite([{ input: svg(W, H, outsideGlass(W, H) + bezel(W, H)) }])
+    .removeAlpha()
+    .raw()
+    .toBuffer();
+  return sharp(flat, { raw }).png({ palette: true, colors: 256, compressionLevel: 9 }).toBuffer();
+}
 // Righe nere in alto e in basso (letterbox delle miniature 4:3 di YouTube, o film in 2.35:1):
 // una riga è "banda" se quasi tutta nera (tollera i comandi del player stampati sopra). Si toglie
 // anche qualche riga di sfumatura JPEG, mai più di metà dell'altezza in tutto.
@@ -213,6 +357,19 @@ async function tintedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> 
   return sharp(resized).greyscale().tint(GREEN);
 }
 
+// Fotogramma tinto per l'anteprima, già in RGB: luminanza del grigio sul verde del fosforo, con le
+// luci più forti che virano appena al bianco come un fosforo saturo.
+async function phosphorFrame(thumb: Buffer): Promise<Buffer> {
+  const grey = await (await tintedFrame(thumb, OG_W, OG_H)).greyscale().raw().toBuffer();
+  const rgb = Buffer.alloc(OG_W * OG_H * 3);
+  for (let p = 0; p < OG_W * OG_H; p++) {
+    const v = grey[p] / 255;
+    const white = v * v * 0.35;
+    for (let c = 0; c < 3; c++) rgb[p * 3 + c] = Math.round(255 * (v * (GREEN_RGB[c] / 255) * (1 - white) + white * v));
+  }
+  return sharp(rgb, { raw: { width: OG_W, height: OG_H, channels: 3 } }).png().toBuffer();
+}
+
 // Fotogramma della canzone con le scanline (immagine nella pagina).
 export async function songFrame(thumb: Buffer, w: number, h: number): Promise<Buffer> {
   return (await tintedFrame(thumb, w, h))
@@ -222,23 +379,20 @@ export async function songFrame(thumb: Buffer, w: number, h: number): Promise<Bu
     .toBuffer();
 }
 
-// Anteprima social 1200x630, opaca: scheda di titolo, o fotogramma della canzone con il testo sopra.
-// Le scanline arrivano una volta sola, dallo strato di testo.
-export async function ogImage(t: CardText, thumb: Buffer | null = null): Promise<Buffer> {
-  const img = thumb
-    ? (await tintedFrame(thumb, OG_W, OG_H)).composite([{ input: frameOverlaySvg(t) }])
-    : sharp(titleCardSvg(t)).flatten({ background: BG });
-  return sharp(await img.png().toBuffer())
-    .flatten({ background: BG })
-    .removeAlpha()
-    .png()
-    .toBuffer();
+// Anteprima social 1200x630, opaca: scheda di titolo, o fotogramma della canzone con il testo sopra,
+// passata per gli effetti CRT. `seed` (il percorso della scheda) rende la grana riproducibile.
+export async function ogImage(t: CardText, thumb: Buffer | null = null, seed = `${t.title}|${t.host}`): Promise<Buffer> {
+  // il fotogramma tinto diventa PNG prima del testo: altrimenti `tint()` sbiadisce anche il testo
+  const frame = thumb ? await phosphorFrame(thumb) : null;
+  const img = frame ? sharp(frame).composite([{ input: frameOverlaySvg(t) }]) : sharp(titleCardSvg(t, false));
+  return crtEffects(await img.png().toBuffer(), seed);
 }
 
 // Immagine di una canzone nella pagina: fotogramma 640x360, o scheda di titolo senza miniatura.
 export async function songImage(t: CardText, thumb: Buffer | null): Promise<Buffer> {
   if (thumb) return songFrame(thumb, 640, 360);
-  const card = await ogImage(t, null);
+  // la scheda piatta: lo schermo del sito aggiunge già i suoi effetti
+  const card = await sharp(titleCardSvg(t, true)).flatten({ background: BG }).removeAlpha().png().toBuffer();
   // `contain` e non `cover`: la cornice del monitor resta intera (le fasce sono dello stesso nero).
   return sharp(card).resize(640, 360, { fit: 'contain', background: BG }).png().toBuffer();
 }
