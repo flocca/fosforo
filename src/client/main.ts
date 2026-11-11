@@ -44,11 +44,10 @@ function applyPhosphor(p: Phosphor) {
   if (button) button.title = `Fosfori: ${p}`;
 }
 
-// Stesso percorso del comando `suono` e del tasto del suono: etichetta e tasto mostrano la
+// Stesso percorso del comando `suono` e del tasto del suono: spia e tasto mostrano la
 // preferenza del visitatore, anche quando l'audio non è ancora partito.
 function showSound(muted: boolean) {
-  const state = document.querySelector<HTMLElement>('.sound-state');
-  if (state) state.textContent = `suono: ${muted ? 'spento' : 'acceso'}`;
+  document.querySelector('.sound-led')?.classList.toggle('is-on', !muted);
   const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (button) {
     const name = muted ? 'Suono spento' : 'Suono acceso';
@@ -134,7 +133,7 @@ async function main() {
 
   const promptLabel = (cwd: string) => `${site.user}@${site.host} ${cwd ? `~/${cwd}` : '~'} $ `;
   const screenEl = document.querySelector<HTMLElement>('.screen')!;
-  const led = document.querySelector('.led');
+  const led = document.querySelector('.power-led');
   const powerButton = document.querySelector<HTMLButtonElement>('.power-button');
 
   // ── accensione ────────────────────────────────────────────────────────────

@@ -70,18 +70,25 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
       </div>
       <div class="monitor-panel">
         <span class="monitor-label" aria-hidden="true">{label}</span>
-        <span class="sound-state">suono: acceso</span>
-        <span class="led is-on" aria-hidden="true"></span>
-        <button type="button" class="sound-button" aria-label="Suono acceso" aria-pressed="true" title="Suono acceso" disabled>
-          <svg viewBox="0 0 20 14" aria-hidden="true" focusable="false">
-            <path class="speaker" d="M2 5h3l4-3.5v11L5 9H2z" />
-            <path class="waves" d="M12 4.5a3.5 3.5 0 0 1 0 5M14.5 2.5a6.5 6.5 0 0 1 0 9" />
-            <path class="cross" d="M12 4.5l5 5M17 4.5l-5 5" />
-          </svg>
-        </button>
-        <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled></button>
+        <span class="panel-key">
+          <button type="button" class="sound-button" aria-label="Suono acceso" aria-pressed="true" title="Suono acceso" disabled>
+            <svg viewBox="0 0 20 14" aria-hidden="true" focusable="false">
+              <path class="speaker" d="M2 5h3l4-3.5v11L5 9H2z" />
+              <path class="waves" d="M12 4.5a3.5 3.5 0 0 1 0 5M14.5 2.5a6.5 6.5 0 0 1 0 9" />
+              <path class="cross" d="M12 4.5l5 5M17 4.5l-5 5" />
+            </svg>
+          </button>
+          <span class="panel-led sound-led is-on" aria-hidden="true"></span>
+        </span>
+        <span class="panel-key">
+          <button type="button" class="phosphor-button" aria-label="Cambia colore dei fosfori" title="Fosfori: verde" disabled></button>
+          <span class="panel-led phosphor-led is-on" aria-hidden="true"></span>
+        </span>
         <!-- senza JavaScript i tasti restano disabilitati: lo schermo mostra già il livello 0 -->
-        <button type="button" class="power-button" aria-label="Accendi" disabled></button>
+        <span class="panel-key">
+          <button type="button" class="power-button" aria-label="Accendi" disabled></button>
+          <span class="panel-led power-led is-on" aria-hidden="true"></span>
+        </span>
       </div>
     </div>
     <script>

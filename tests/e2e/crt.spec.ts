@@ -15,11 +15,13 @@ test('un valore sconosciuto nello storage lascia il verde', async ({ page }) => 
   await expect(page.locator('html')).toHaveAttribute('data-fosfori', 'verde');
 });
 
-test('il monitor ha interruttore, LED, tasto e etichetta del suono', async ({ page }) => {
+test('il monitor ha interruttore, tasto del suono e tre spie', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Accendi' })).toBeVisible();
-  await expect(page.locator('.led')).toHaveCount(1);
-  await expect(page.locator('.sound-state')).toHaveText('suono: acceso');
+  await expect(page.locator('.panel-led')).toHaveCount(3);
+  await expect(page.locator('.panel-led[aria-hidden="true"]')).toHaveCount(3);
+  await expect(page.locator('.sound-state, .led')).toHaveCount(0);
+  await expect(page.locator('.sound-led')).toHaveClass(/is-on/);
   await expect(page.getByRole('button', { name: 'Suono acceso' })).toBeVisible();
   await expect(page.locator('.screen #screen .term')).toHaveCount(1);
 });
@@ -62,6 +64,16 @@ test.describe('telefono a 320 px: pannello', () => {
       expect(Math.abs(b.y - boxes[0].y)).toBeLessThan(2);
     }
     expect(boxes[2].x).toBeGreaterThan(boxes[1].x); // l'interruttore è a destra
+    // le spie sono visibili, dentro lo schermo e centrate sotto il proprio tasto
+    const leds = ['.sound-led', '.phosphor-led', '.power-led'];
+    for (let i = 0; i < 3; i++) {
+      const led = await page.locator(leds[i]).boundingBox();
+      expect(led).not.toBeNull();
+      expect(led!.x).toBeGreaterThanOrEqual(0);
+      expect(led!.x + led!.width).toBeLessThanOrEqual(320);
+      expect(led!.y).toBeGreaterThanOrEqual(boxes[i].y + boxes[i].height);
+      expect(Math.abs(led!.x + led!.width / 2 - (boxes[i].x + boxes[i].width / 2))).toBeLessThan(1.5);
+    }
     await sound.click();
     await expect(page.getByRole('button', { name: 'Suono spento' })).toBeVisible();
     const { sw, cw } = await page.evaluate(() => ({

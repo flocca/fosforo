@@ -8,8 +8,11 @@
  * - .term-prompt[hidden] (prompt nascosto durante il boot)
  * - .term, .dim, .bold, .inverse, .ph-img
  * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
- * - .power-button, .phosphor-button, .led.is-on, .sound-button (tasto fisico del suono, aria-label
- *   "Suono acceso|spento"), .sound-state (etichetta di stato, non interattiva), .chips
+ * - .power-button, .phosphor-button, .sound-button (tasto fisico del suono, aria-label
+ *   "Suono acceso|spento"), .chips
+ * - .panel-key: tasto + spia come un'unica unità; .panel-led (decorativa, aria-hidden) sotto ogni
+ *   tasto: .power-led.is-on (monitor acceso), .sound-led.is-on (suono acceso), .phosphor-led
+ *   (sempre accesa, del colore --ph)
  */
 
 /* ── fosfori ─────────────────────────────────────────────────────────────── */
@@ -473,33 +476,51 @@ body {
   text-shadow: 0 1px 0 #0008, 0 -1px 0 #5a524433;
 }
 
-.sound-state {
-  padding: 4px 2px;
-  letter-spacing: 0.08em;
-  white-space: nowrap;
-  opacity: 0.85;
-}
-
-.led {
+/* tasto e spia formano un'unica unità: la spia sta centrata sotto il tasto */
+.panel-key {
   flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #300;
-  box-shadow: inset 0 1px 1px #0008;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
 }
 
-.led.is-on {
-  background: #f33;
+/* spia rettangolare incassata nella cornice, più larga che alta */
+.panel-led {
+  width: 14px;
+  height: 5px;
+  border-radius: 1.5px;
+  background: #2a0808;
   box-shadow:
-    0 0 8px #f33,
-    inset 0 -1px 1px #a00;
+    0 0 0 1px #1a1612,
+    0 1px 0 1px #6b624f66,
+    inset 0 1px 1px #000a;
 }
 
-/* la home con JavaScript parte spenta: LED spento anche prima del client */
-:root.power-pending .led.is-on {
-  background: #300;
-  box-shadow: inset 0 1px 1px #0008;
+.panel-led.is-on {
+  background: linear-gradient(#ff8a8a, #f33 60%, #c11);
+  box-shadow:
+    0 0 0 1px #1a1612,
+    0 1px 0 1px #6b624f66,
+    0 0 6px 1px #f33a;
+}
+
+/* la spia dei fosfori è sempre accesa, del colore attuale */
+.panel-led.phosphor-led.is-on {
+  background: linear-gradient(#fff9, var(--ph) 55%, var(--ph-dim));
+  box-shadow:
+    0 0 0 1px #1a1612,
+    0 1px 0 1px #6b624f66,
+    0 0 6px 1px var(--ph-glow);
+}
+
+/* la home con JavaScript parte spenta: spia dell'interruttore spenta anche prima del client */
+:root.power-pending .power-led.is-on {
+  background: #2a0808;
+  box-shadow:
+    0 0 0 1px #1a1612,
+    0 1px 0 1px #6b624f66,
+    inset 0 1px 1px #000a;
 }
 
 /* tasti fisici del pannello: interruttore e selettore dei fosfori, stessa plastica */
@@ -671,11 +692,6 @@ body {
   .monitor-label {
     letter-spacing: 0.2em;
   }
-
-  /* sul telefono lo stato del suono lo mostra il tasto */
-  .sound-state {
-    display: none;
-  }
 }
 
 @media (max-width: 360px) {
@@ -683,8 +699,8 @@ body {
     display: none;
   }
 
-  .led {
-    margin-right: auto;
+  .monitor-panel {
+    justify-content: flex-end;
   }
 }
 

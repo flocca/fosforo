@@ -37,7 +37,7 @@ test('la home parte spenta, con l\'interruttore e senza prompt', async ({ page }
   await today(page);
   await page.goto('/');
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
-  await expect(page.locator('.led')).not.toHaveClass(/is-on/);
+  await expect(page.locator('.power-led')).not.toHaveClass(/is-on/);
   await expect(powerButton(page)).toBeEnabled();
   await expect(prompt(page)).toHaveCount(0);
   // il livello 0 resta nella pagina ma non si vede
@@ -49,7 +49,7 @@ test('Review Focus 4: doppio clic, un solo boot; un tasto salta alla fine', asyn
   await countBoots(page);
   await page.goto('/');
   await powerButton(page).dblclick();
-  await expect(page.locator('.led')).toHaveClass(/is-on/);
+  await expect(page.locator('.power-led')).toHaveClass(/is-on/);
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await page.keyboard.press('x');
   await expect(output(page)).toContainText(WELCOME, { timeout: 300 });
@@ -129,7 +129,7 @@ test('link profondo: nessun interruttore, prompt subito', async ({ page }) => {
   await expect(prompt(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accendi' })).toHaveCount(0);
   await expect(page.locator('.screen')).not.toHaveClass(/is-off/);
-  await expect(page.locator('.led')).toHaveClass(/is-on/);
+  await expect(page.locator('.power-led')).toHaveClass(/is-on/);
 });
 
 test('reboot: schermo spento, boot completo dalla radice anche nello stesso giorno', async ({ page }) => {
@@ -139,7 +139,7 @@ test('reboot: schermo spento, boot completo dalla radice anche nello stesso gior
   await page.keyboard.type('reboot');
   await page.keyboard.press('Enter');
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
-  await expect(page.locator('.led')).not.toHaveClass(/is-on/);
+  await expect(page.locator('.power-led')).not.toHaveClass(/is-on/);
   await expect(romLines(page, SECOND_ROM)).toHaveCount(1, { timeout: 4000 });
   await expect(page).toHaveURL(/\/$/);
   await page.keyboard.press('x');
@@ -220,7 +220,7 @@ async function countAudioContexts(page: Page) {
   });
 }
 const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
-const soundState = (page: Page) => page.locator('.sound-state');
+const soundLed = (page: Page) => page.locator('.sound-led');
 const soundButton = (page: Page, on: boolean) => page.getByRole('button', { name: on ? 'Suono acceso' : 'Suono spento' });
 
 test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', async ({ page }) => {
@@ -237,7 +237,7 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await page.keyboard.press('x');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundState(page)).toHaveText('suono: acceso');
+  await expect(soundLed(page)).toHaveClass(/is-on/);
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
@@ -245,17 +245,17 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
 
   await page.reload();
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
   await powerButton(page).click();
   // il contesto nasce lo stesso (muto), così `suono` lo riaccende senza un altro gesto
   expect(await audioContexts(page)).toBe(1);
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await page.keyboard.press('x');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
   await prompt(page).fill('suono acceso');
   await prompt(page).press('Enter');
-  await expect(soundState(page)).toHaveText('suono: acceso');
+  await expect(soundLed(page)).toHaveClass(/is-on/);
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBeNull();
   expect(errors).toEqual([]);
 });
@@ -263,27 +263,27 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
 test('il tasto del suono ha lo stesso effetto del comando, anche a monitor spento, e la scelta resta dopo il ricaricamento', async ({ page }) => {
   await page.goto('/');
   await soundButton(page, true).click();
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
   expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
   // non accende il monitor
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
 
   await page.goto('/chi-sono');
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
   await soundButton(page, false).click();
-  await expect(soundState(page)).toHaveText('suono: acceso');
+  await expect(soundLed(page)).toHaveClass(/is-on/);
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
 });
 
-test('link profondo: l\'audio parte al primo gesto, l\'etichetta mostra la preferenza', async ({ page }) => {
+test('link profondo: l\'audio parte al primo gesto, la spia mostra la preferenza', async ({ page }) => {
   await countAudioContexts(page);
   await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
   await page.goto('/chi-sono');
   await expect(prompt(page)).toBeFocused();
-  await expect(soundState(page)).toHaveText('suono: spento');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
   expect(await audioContexts(page)).toBe(0);
   await page.keyboard.type('pwd');
   // un solo contesto, anche dopo molti tasti
@@ -328,4 +328,33 @@ test.describe('senza JavaScript', () => {
     await expect(page.getByRole('button', { name: 'Accendi' })).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Cambia colore dei fosfori' })).toBeDisabled();
   });
+});
+
+test('spia dell\'interruttore: accesa solo dopo l\'accensione, anche durante il boot', async ({ page }) => {
+  await today(page);
+  await page.goto('/');
+  await expect(page.locator('.power-led')).not.toHaveClass(/is-on/);
+  expect(await page.locator('.power-led').evaluate((el) => getComputedStyle(el).backgroundColor)).toBe('rgb(42, 8, 8)');
+  await powerButton(page).click();
+  await expect(page.locator('.power-led')).toHaveClass(/is-on/);
+  expect(await page.locator('.power-led').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('gradient');
+});
+
+test('spia del suono: segue il tasto', async ({ page }) => {
+  await page.goto('/chi-sono');
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+  await soundButton(page, true).click();
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
+  await soundButton(page, false).click();
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+});
+
+test('spia dei fosfori: cambia colore con il selettore', async ({ page }) => {
+  await page.goto('/chi-sono');
+  const led = page.locator('.phosphor-led');
+  const bg = () => led.evaluate((el) => getComputedStyle(el).backgroundImage);
+  const before = await bg();
+  await page.locator('.phosphor-button').click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-fosfori', 'verde');
+  expect(await bg()).not.toBe(before);
 });
