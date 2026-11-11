@@ -22,7 +22,7 @@ Variabili d'ambiente:
 
 - `CONTENT_DIR`: cartella dei contenuti, assoluta o relativa alla cartella da cui si lancia il comando. Default: `example-content/`.
 - `SITE_URL`: indirizzo pubblico del sito, usato per gli URL assoluti nei tag Open Graph. Default: `https://example.com`.
-- `FOSFORO_CACHE`: cartella della cache delle miniature YouTube. Default: `.cache/`. È l'unico accesso di rete della build.
+- `FOSFORO_CACHE`: cartella della cache delle miniature YouTube. Default: `.cache/`. È l'unico accesso di rete della build. Se il download di una miniatura fallisce (rete, timeout, errore 5xx, dopo 3 tentativi) la build si ferma di proposito: l'anteprima di una canzone viene messa in cache dai social alla prima visita e non deve mai essere un ripiego, quindi la canzone resta un 404 e la build successiva riprova.
 
 ## Formati dei contenuti
 
