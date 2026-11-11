@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import { soundBoard } from './dev/integration.mjs';
 
 // Astro ignora le cartelle che iniziano con `_` in src/pages: gli endpoint
 // `/_fs` e `/_img` (percorsi concordati con il client) si iniettano come rotte.
@@ -18,5 +19,5 @@ export default defineConfig({
   site: process.env.SITE_URL ?? 'https://example.com',
   trailingSlash: 'never',
   build: { format: 'file' },
-  integrations: [underscoreRoutes],
+  integrations: [underscoreRoutes, soundBoard()],
 });

@@ -1,0 +1,158 @@
+---
+// Banco dei suoni: solo `astro dev` (rotta iniettata da dev/integration.mjs, mai nella build).
+import '@fontsource/fira-mono/400.css';
+---
+
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Banco dei suoni</title>
+  </head>
+  <body>
+    <header>
+      <h1>Banco dei suoni</h1>
+      <p class="nota">
+        Solo in sviluppo. Scegli un profilo, prova "accensione completa", poi le singole voci: per ognuna confronta nuovo, attuale e
+        registrazione, muovi i cursori e premi "copia valori" per riportare le scelte nel codice.
+      </p>
+      <div class="barra">
+        <label class="riga"><span>profilo</span><select id="profilo"></select></label>
+        <label class="riga"
+          ><span>volume</span><input id="volume" type="range" min="0" max="1" step="0.01" /><output id="volume-valore">0.5</output></label
+        >
+        <label class="spunta"><input id="telefono" type="checkbox" /> anteprima altoparlante telefono (300 Hz-6 kHz)</label>
+      </div>
+      <p id="descrizione" class="nota"></p>
+      <div class="azioni">
+        <button id="accendi" type="button">accensione completa</button>
+        <button id="spegni" type="button">spegnimento</button>
+        <button id="ferma" type="button">ferma tutto</button>
+        <button id="copia-tutto" type="button">copia tutti i valori del profilo</button>
+      </div>
+      <pre id="tutto-json" class="json" hidden></pre>
+      <p class="stato"><span id="stato"></span> <span id="messaggio" role="status"></span></p>
+    </header>
+    <main id="voci"></main>
+    <footer id="crediti-box"></footer>
+    <script>
+      import './board';
+    </script>
+    <style is:global>
+      :root {
+        --fg: #7dff9b;
+        --dim: #3f9c58;
+        --bg: #050a06;
+        --panel: #0b160e;
+        --warn: #ffcf5a;
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--fg);
+        font: 14px/1.45 'Fira Mono', ui-monospace, monospace;
+        text-shadow: 0 0 4px rgb(125 255 155 / 0.35);
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 8px;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 0 0 4px;
+      }
+      h3 {
+        font-size: 14px;
+      }
+      a {
+        color: var(--fg);
+      }
+      .nota {
+        color: var(--dim);
+        max-width: 80ch;
+      }
+      .avviso {
+        color: var(--warn);
+      }
+      .barra,
+      .azioni {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        align-items: center;
+        margin: 8px 0;
+      }
+      button,
+      select {
+        font: inherit;
+        color: var(--fg);
+        background: var(--panel);
+        border: 1px solid var(--dim);
+        border-radius: 3px;
+        padding: 4px 10px;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        background: #143320;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      #voci {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+        gap: 16px;
+      }
+      .voce,
+      .crediti {
+        background: var(--panel);
+        border: 1px solid #1d3a25;
+        border-radius: 4px;
+        padding: 12px;
+        min-width: 0;
+      }
+      .crediti {
+        margin-top: 16px;
+      }
+      .sorgente {
+        border: 1px solid #1d3a25;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        margin: 8px 0;
+      }
+      .riga {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 5ch;
+        gap: 8px;
+        align-items: center;
+        margin: 2px 0;
+      }
+      .barra .riga {
+        grid-template-columns: auto auto auto;
+      }
+      input[type='range'] {
+        width: 100%;
+        accent-color: var(--fg);
+      }
+      output {
+        text-align: right;
+      }
+      .json {
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: #000;
+        padding: 8px;
+        max-height: 240px;
+        overflow: auto;
+      }
+      .stato {
+        color: var(--dim);
+      }
+    </style>
+  </body>
+</html>
