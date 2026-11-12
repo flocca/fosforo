@@ -8,7 +8,7 @@
 import * as prefs from './prefs';
 import { CASE, FAN, FLOPPY, HUM, MAINS, MECH, TUBE } from './sound/preset';
 import { findSegments, type Segment } from './sound/sprite';
-import { Synth, createCase, type Handle } from './sound/voices';
+import { Synth, createCase, type Bus, type Voice } from './sound/voices';
 import floppyM4a from './sound/registrazioni/floppy.m4a?url';
 import floppyWebm from './sound/registrazioni/floppy.webm?url';
 import mechM4a from './sound/registrazioni/meccanica.m4a?url';
@@ -17,11 +17,15 @@ import mechWebm from './sound/registrazioni/meccanica.webm?url';
 export type SiteAudio = {
   readonly started: boolean;
   readonly muted: boolean;
-  /** Interruttore, ronzio con lo spunto, tubo, ventola che prende giri, floppy che ricalibra. Già acceso: reboot del monitor. */
+  /** Interruttore, ronzio con lo spunto, tubo, ventola che prende giri, floppy che ricalibra. La prima volta crea il contesto; dopo `powerOff` riaccende (anche con la ventola che sta ancora rallentando); già acceso non fa niente. */
   powerOn(): void;
-  /** Link profondo, al primo gesto: interruttore e ventola che riparte in fretta (~1,5 s), poi l'ambiente. */
+  /** Spegnimento del monitor: scatto dell'interruttore, tubo che si scarica, ronzio che cessa, ventola che rallenta (`FAN.spinDown`), motore del floppy che si ferma. Da muto si ferma tutto in silenzio. Niente prima del contesto o a monitor già spento. */
+  powerOff(): void;
+  /** Reboot del monitor: scatto che spegne, tubo spento, scatto che riaccende dopo `offS` secondi e tubo di nuovo acceso; ventola e ronzio non si fermano. Niente a monitor spento, da muto o con l'accensione in corso. */
+  reboot(offS: number): void;
+  /** Link profondo, al primo gesto, o Indietro/Avanti a monitor spento: interruttore e ventola che riparte in fretta (~1,5 s), poi l'ambiente. Già acceso non fa niente. */
   spinUp(): void;
-  /** `n` movimenti della testina del floppy. Dice fra quanti secondi la testina ha finito: 0 se non suona (prima dell'accensione, da muto, senza registrazioni). */
+  /** `n` movimenti della testina del floppy. Dice fra quanti secondi la testina ha finito: 0 se non suona (prima dell'accensione, a monitor spento, da muto, senza registrazioni). */
   seek(n: number): number;
   /** Un tasto della cornice (suono, fosfori): pressione e rilascio insieme (Invio, clic senza pressione). */
   press(): void;
@@ -41,8 +45,8 @@ export type Loader = (name: SoundFile, format: Format) => Promise<ArrayBuffer>;
 export const LEVELS = { master: 0.5 };
 
 const MUTE_RAMP_S = 0.05;
-// il monitor resta spento così a lungo durante il reboot
-const REBOOT_OFF_S = 0.4;
+// riaccendendo durante il rallentamento, quello che resta della sessione di prima tace in tanto
+const SESSION_CUT_S = 0.08;
 // quanto si aspetta l'interruttore registrato prima di accendere senza
 const SWITCH_WAIT_MS = 300;
 const PIECES: Record<SoundFile, number> = { meccanica: MECH.pieces.length, floppy: FLOPPY.steps + FLOPPY.seeks + 1 };
@@ -68,6 +72,8 @@ function formats(): Format[] {
 }
 
 type Pieces = { buf: AudioBuffer; segs: Segment[] };
+// un'accensione del monitor: le sue voci e i guadagni da cui passano (per zittirle tutte insieme)
+type Session = { mech: GainNode; direct: GainNode; hum: Voice; fan: Voice; tube: Voice };
 
 const pick = (count: number, last: number) => {
   let i = Math.floor(Math.random() * count);
@@ -80,13 +86,23 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
   let master: GainNode;
   let direct: GainNode;
   let synth: Synth;
+  let caseIn: AudioNode;
+  // le uscite del sintetizzatore: puntano ai guadagni della sessione accesa
+  let bus: Bus;
   let muted = prefs.isSoundOff();
   let muteTimer: ReturnType<typeof setTimeout> | undefined;
   let mech: Pieces | null = null;
   let floppy: Pieces | null = null;
   let mechReady: Promise<Pieces | null>;
   let floppyReady: Promise<Pieces | null>;
-  let tube: Handle | null = null;
+  let session: Session | null = null;
+  // monitor acceso (anche con l'interruttore registrato ancora in arrivo)
+  let on = false;
+  // cresce a ogni accensione e spegnimento: un'accensione in attesa di un'altra epoca non parte
+  let epoch = 0;
+  // monitor spento e ventola ferma: il contesto si sospende, non consuma batteria
+  let asleep = false;
+  let sleepTimer: ReturnType<typeof setTimeout> | undefined;
   // fine dell'ultimo suono di un tasto: lo spegnimento del suono aspetta che finisca
   let quietAt = 0;
   // fine dell'ultimo suono programmato: il contesto si sospende solo dopo, altrimenti
@@ -112,7 +128,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
   function sync() {
     const c = ctx;
     if (!c || changing || c.state === 'closed') return;
-    const wanted = () => (muted || hidden ? 'suspended' : 'running');
+    const wanted = () => (muted || hidden || asleep ? 'suspended' : 'running');
     const want = wanted();
     if (c.state === want) return;
     changing = true;
@@ -154,7 +170,9 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     master.connect(ctx.destination);
     direct = ctx.createGain();
     direct.connect(master);
-    synth = new Synth(ctx, { mech: createCase(ctx, master, CASE).input, direct });
+    caseIn = createCase(ctx, master, CASE).input;
+    bus = { mech: caseIn, direct };
+    synth = new Synth(ctx, bus);
     mechReady = decode('meccanica').then((p) => (mech = p));
     floppyReady = decode('floppy').then((p) => (floppy = p));
     // creato su un tocco (pointerdown) alcuni browser lo lasciano sospeso: si prova a farlo
@@ -183,21 +201,64 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     return { src, g };
   }
 
-  // Ambiente continuo. `transients`: spunto del trasformatore e crepitio del tubo (no da muto).
-  // `spin`: secondi in cui la ventola prende giri (0 = già a regime).
+  // Ambiente continuo, in una sessione nuova. `transients`: spunto del trasformatore e
+  // crepitio del tubo (no da muto). `spin`: secondi in cui la ventola prende giri (0 = già a regime).
   function ambient(t0: number, transients: boolean, spin: number) {
+    const c = ctx!;
+    // la ventola di prima sta ancora rallentando: tace allo scatto, mai due ventole
+    if (session) endSession(session, t0);
+    const mech = c.createGain();
+    mech.connect(caseIn);
+    const dir = c.createGain();
+    dir.connect(direct);
+    // il sintetizzatore legge le uscite a ogni voce: da qui in poi suona nella sessione nuova
+    bus.mech = mech;
+    bus.direct = dir;
     if (transients) busy(t0 + 0.12 + TUBE.crackleDur);
-    synth.hum(HUM, t0, transients);
-    tube = synth.tube(TUBE, MAINS, t0 + 0.12, transients);
-    synth.fan(spin ? { ...FAN, spinUp: spin } : FAN, MAINS, t0 + 0.02, spin > 0);
+    session = {
+      mech,
+      direct: dir,
+      hum: synth.hum(HUM, t0, transients),
+      tube: synth.tube(TUBE, MAINS, t0 + 0.12, transients),
+      fan: synth.fan(spin ? { ...FAN, spinUp: spin } : FAN, MAINS, t0 + 0.02, spin > 0),
+    };
+  }
+
+  // Zittisce una sessione (code del tubo e ventola che rallenta comprese) e ne ferma le sorgenti.
+  function endSession(s: Session, at: number) {
+    for (const g of [s.mech, s.direct]) {
+      g.gain.setValueAtTime(1, at);
+      g.gain.setTargetAtTime(0, at, SESSION_CUT_S / 5);
+    }
+    for (const v of [s.hum, s.tube, s.fan]) v.cut(at + SESSION_CUT_S);
+  }
+
+  // Il contesto si sveglia (accensione, un tasto a monitor spento).
+  function wake() {
+    clearTimeout(sleepTimer);
+    asleep = false;
+    sync();
+  }
+
+  // A monitor spento il contesto si sospende quando è finito tutto (la ventola si è fermata).
+  function sleepLater() {
+    clearTimeout(sleepTimer);
+    const wait = Math.max(0, busyUntil - ctx!.currentTime);
+    sleepTimer = setTimeout(() => {
+      if (on) return;
+      asleep = true;
+      sync();
+    }, wait * 1000 + 50);
   }
 
   // L'interruttore registrato arriva dalla rete: si aspetta poco, poi si accende senza.
+  // Uno spegnimento nel frattempo annulla l'accensione.
   function withSwitch(start: (t0: number) => void) {
     let done = false;
+    const mine = epoch;
     switching = true;
     const go = () => {
-      if (done || !ctx) return;
+      if (done || !ctx || mine !== epoch) return;
       done = true;
       switching = false;
       const t0 = now();
@@ -295,15 +356,21 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     motorIdle();
   }
 
-  function powerOnFirst() {
-    if (!open()) return;
+  // Accensione: il contesto c'è già. `spin`: secondi in cui la ventola prende giri;
+  // `disk`: il floppy ricalibra.
+  function switchOn(spin: number, disk: boolean) {
+    on = true;
+    const mine = ++epoch;
+    wake();
     // da muto niente transitori: riaccendendo dopo si sente solo l'ambiente, non un interruttore fuori tempo
     if (muted) return ambient(now(), false, 0);
     withSwitch((t0) => {
-      ambient(t0, true, FAN.spinUp);
+      ambient(t0, true, spin);
+      if (!disk) return;
       void floppyReady.then((f) => {
-        // arrivato tardi (rete lenta): la ricalibrazione a boot finito sarebbe fuori posto
-        if (f && !muted && now() < t0 + 2) diskBoot(Math.max(t0 + 1, now()));
+        // arrivato tardi (rete lenta): la ricalibrazione a boot finito sarebbe fuori posto;
+        // spento nel frattempo: niente
+        if (f && !muted && mine === epoch && now() < t0 + 2) diskBoot(Math.max(t0 + 1, now()));
       });
     });
   }
@@ -315,6 +382,8 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
   function keyAt(): number | null {
     if (!ctx || muted || !mech) return null;
     if (ctx.state !== 'running' && quietAt > ctx.currentTime) return null;
+    // a monitor spento il contesto può dormire: i tasti della cornice suonano lo stesso
+    if (asleep) wake();
     return now();
   }
 
@@ -323,6 +392,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     play(mech!, piece, at, gain);
     const seg = mech!.segs[piece];
     quietAt = Math.max(quietAt, at + (seg.end - seg.start));
+    if (!on) sleepLater();
   }
 
   return {
@@ -334,27 +404,50 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     },
 
     powerOn() {
-      if (!ctx) return powerOnFirst();
-      // da muto, o con l'accensione ancora in corso, niente reboot sonoro
-      if (muted || switching) return;
-      // reboot: il monitor si spegne e si riaccende, ventola e ronzio non si fermano
+      if (on || (!ctx && !open())) return;
+      switchOn(FAN.spinUp, true);
+    },
+
+    powerOff() {
+      if (!ctx || !on) return;
+      on = false;
+      // un'accensione ancora in attesa dell'interruttore non parte più
+      epoch++;
+      switching = false;
+      const t = now();
+      if (mech && !muted) play(mech, 1, t, MECH.gain.switchOff);
+      if (session) {
+        const { hum, tube, fan } = session;
+        tube.stop(t + 0.01);
+        hum.stop(t + 0.01);
+        fan.stop(t + 0.01);
+        busy(t + 0.01 + FAN.spinDown + 0.1);
+      }
+      clearTimeout(motorTimer);
+      motorOff();
+      sleepLater();
+    },
+
+    reboot(offS) {
+      // a monitor spento, da muto, o con l'accensione ancora in corso, niente reboot sonoro
+      if (!ctx || !on || muted || switching || !session) return;
+      // il monitor si spegne e si riaccende, ventola e ronzio non si fermano
       const t = now();
       if (mech) play(mech, 1, t, MECH.gain.switchOff);
-      tube?.stop(t);
-      if (mech) play(mech, 0, t + REBOOT_OFF_S, MECH.gain.switchOn);
-      tube = synth.tube(TUBE, MAINS, t + REBOOT_OFF_S + 0.12);
-      busy(t + REBOOT_OFF_S + 0.12 + TUBE.crackleDur);
+      session.tube.stop(t);
+      if (mech) play(mech, 0, t + offS, MECH.gain.switchOn);
+      session.tube = synth.tube(TUBE, MAINS, t + offS + 0.12);
+      busy(t + offS + 0.12 + TUBE.crackleDur);
     },
 
     spinUp() {
-      if (ctx || !open()) return;
-      if (muted) return ambient(now(), false, 0);
-      withSwitch((t0) => ambient(t0, true, 1.5));
+      if (on || (!ctx && !open())) return;
+      switchOn(1.5, false);
     },
 
     seek(n) {
       // a contesto sospeso gli scatti si accumulerebbero e uscirebbero tutti insieme alla ripresa
-      if (!ctx || muted || ctx.state !== 'running' || !floppy) return 0;
+      if (!ctx || !on || muted || ctx.state !== 'running' || !floppy) return 0;
       let at = Math.max(now(), diskFree);
       if (!motor) {
         motorOn(at);

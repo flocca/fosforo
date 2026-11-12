@@ -228,7 +228,7 @@ async function main() {
     async reboot() {
       booting?.skip();
       // a contesto già nato (qui non siamo dentro il gesto): l'interruttore scatta, il tubo si spegne e si riaccende
-      if (audio.started) audio.powerOn();
+      if (audio.started) audio.reboot(REBOOT_OFF_MS / 1000);
       power = 'booting';
       setPowerButton(false);
       screen.clear();

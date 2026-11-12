@@ -32,6 +32,13 @@ import type { DiskKind, Params } from './profiles';
 
 export type Bus = { mech: AudioNode; direct: AudioNode };
 export type Handle = { stop(at?: number): void };
+/** Una voce dell'ambiente: `stop` la spegne con la sua coda, `cut` ferma subito tutte le sue sorgenti (la coda già silenziata da chi la usa). */
+export type Voice = Handle & { cut(at: number): void };
+
+// un nuovo stop() con un istante più vicino sostituisce quello di prima
+const cutAll = (nodes: AudioScheduledSourceNode[], at: number) => {
+  for (const n of nodes) n.stop(at);
+};
 
 const VARIANTS = 6;
 
@@ -355,7 +362,8 @@ export class Synth {
 
   // --- tubo: crepitio dell'alta tensione e fischio del flyback ---
   /** `transients`: crepitio all'accensione e scintille allo spegnimento (no: solo il fischio). */
-  tube(p: Params, mains: number, at: number, transients = true): Handle {
+  tube(p: Params, mains: number, at: number, transients = true): Voice {
+    let sparks: AudioBufferSourceNode | null = null;
     if (transients) {
       const crackle = this.buffers('crackle' + JSON.stringify(crackleSpec(p)), () => [
         normalize(renderCrackle(crackleSpec(p), this.ctx.sampleRate, this.seed * 13)),
@@ -394,11 +402,12 @@ export class Synth {
         if (transients) {
           const off: CrackleSpec = { ...crackleSpec(p), duration: 0.5, peakAt: 0.02, rate: p.crackleRate * 0.4 };
           const b = this.buffers('crackle-off' + JSON.stringify(off), () => [normalize(renderCrackle(off, this.ctx.sampleRate, this.seed * 17))]);
-          this.shot('crackle-off', b, t, p.crackle * 0.35, this.bus.direct, false);
+          sparks = this.shot('crackle-off', b, t, p.crackle * 0.35, this.bus.direct, false);
         }
         for (const o of parts) o.stop(t + 0.6);
         drift.stop(t + 0.6);
       },
+      cut: (t) => cutAll(sparks ? [...parts, drift, sparks] : [...parts, drift], t),
     };
   }
 
@@ -411,7 +420,7 @@ export class Synth {
   }
 
   // --- ronzio del trasformatore ---
-  hum(p: Params, at: number, inrush = true): Handle {
+  hum(p: Params, at: number, inrush = true): Voice {
     const h = humHarmonics({ fundamental: p.fundamental, rolloffDb: p.rolloff, odd: p.odd, maxHarmonic: 20 });
     const wave = this.ctx.createPeriodicWave(h.real, h.imag, { disableNormalization: true });
     let sum = 0;
@@ -439,11 +448,12 @@ export class Synth {
         o.stop(t + 0.4);
         load.stop(t + 0.4);
       },
+      cut: (t) => cutAll([o, load], t),
     };
   }
 
   // --- ventola: soffio, passaggio delle pale, sbilanciamento, ronzio del motore ---
-  fan(p: Params, mains: number, at: number, spinUp = true): Handle {
+  fan(p: Params, mains: number, at: number, spinUp = true): Voice {
     const c = this.ctx;
     const bpf = bladePass(p);
     const out = this.gain(0, this.bus.mech);
@@ -499,6 +509,7 @@ export class Synth {
     whine.start(at);
     tone.start(at);
     mo.start(at);
+    const sources = [a, low, flow, jit, shaft, tone, mo, whine, wj];
     return {
       stop: (t = c.currentTime) => {
         // giri raggiunti finora: se si spegne mentre prende giri, rallenta da lì
@@ -507,8 +518,9 @@ export class Synth {
         set(f, 0.001, t, secs);
         motor.gain.setTargetAtTime(0, t, 0.03);
         const end = t + secs + 0.1;
-        for (const n of [a, low, flow, jit, shaft, tone, mo, whine, wj]) n.stop(end);
+        for (const n of sources) n.stop(end);
       },
+      cut: (t) => cutAll(sources, t),
     };
   }
 

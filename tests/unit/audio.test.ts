@@ -59,19 +59,29 @@ class FakeContext {
     return this.add(Object.assign(new FakeNode('gain'), { gain: new FakeParam(1) }));
   }
   createOscillator() {
-    return this.add(
+    const stops: number[] = [];
+    const o = this.add(
       Object.assign(new FakeNode('oscillator'), {
         type: 'sine',
         frequency: new FakeParam(440),
         detune: new FakeParam(0),
+        // frequenza alla partenza: le automazioni finte la cambiano subito (la ventola che rallenta)
+        startHz: 0,
+        stops,
         setPeriodicWave() {},
-        start() {},
-        stop() {},
+        start() {
+          o.startHz = o.frequency.value;
+        },
+        stop(at = 0) {
+          stops.push(at);
+        },
       }),
     );
+    return o;
   }
   createBufferSource() {
     const starts: number[][] = [];
+    const stops: number[] = [];
     return this.add(
       Object.assign(new FakeNode('buffer'), {
         buffer: null as unknown,
@@ -80,10 +90,13 @@ class FakeContext {
         loopEnd: 0,
         playbackRate: new FakeParam(1),
         starts,
+        stops,
         start(...args: number[]) {
           starts.push(args);
         },
-        stop() {},
+        stop(at = 0) {
+          stops.push(at);
+        },
       }),
     );
   }
@@ -182,10 +195,25 @@ function setup(files: 'tutti' | 'nessuno' | 'meccanica lenta' = 'tutti') {
   const tubes = () => contexts[0].nodes.filter((n) => n.kind === 'oscillator' && (n as unknown as { frequency: FakeParam }).frequency.value === 15625).length;
   // sorgenti in loop avviate: il motore del floppy
   const motors = () => contexts[0].nodes.filter((n) => n.kind === 'buffer' && (n as unknown as { loop: boolean; starts: number[][] }).loop && (n as unknown as { starts: number[][] }).starts.length > 0 && (n as unknown as { buffer: { getChannelData(): Float32Array } }).buffer?.getChannelData().byteLength === FLOPPY.data.byteLength).length;
-  return { audio, contexts, master, played, tubes, motors, releaseMech: () => releaseMech() };
+  type Osc = { startHz: number; stops: number[] };
+  const oscs = () => contexts[0].nodes.filter((n) => n.kind === 'oscillator') as unknown as Osc[];
+  // per gli oscillatori partiti a `hz`: se ognuno suona ancora dopo `t` (nessuno stop, o l'ultimo dopo `t`)
+  const running = (hz: number, t: number) =>
+    oscs()
+      .filter((o) => o.startHz === hz)
+      .map((o) => o.stops.length === 0 || o.stops[o.stops.length - 1] > t);
+  // pezzi della meccanica: [inizio nel file, istante in cui suona]
+  const mechPlays = () =>
+    contexts[0].nodes
+      .filter((n) => n.kind === 'buffer' && (n as unknown as { buffer: { getChannelData(): Float32Array } | null }).buffer?.getChannelData().byteLength === MECH.data.byteLength)
+      .flatMap((n) => (n as unknown as { starts: number[][] }).starts.map((st) => [st[1] ?? 0, st[0]] as const));
+  return { audio, contexts, master, played, tubes, motors, oscs, running, mechPlays, releaseMech: () => releaseMech() };
 }
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
+// fischio del motorino della ventola (FAN.whineHz): uno per ventola
+const WHINE_HZ = 504;
+const FAN_SPIN_DOWN = 5;
 
 describe('createAudio', () => {
   it('non crea il contesto prima di powerOn', () => {
@@ -258,7 +286,7 @@ describe('createAudio', () => {
     audio.powerOn();
     await flush();
     const before = played().length;
-    audio.powerOn();
+    audio.reboot(0.4);
     await flush();
     const mech = played()
       .slice(before)
@@ -424,7 +452,7 @@ describe('createAudio', () => {
   it('un reboot mentre l\'interruttore si sta ancora caricando non lascia due tubi accesi', async () => {
     const { audio, tubes, releaseMech } = setup('meccanica lenta');
     audio.powerOn();
-    audio.powerOn();
+    audio.reboot(0.4);
     releaseMech();
     await flush();
     expect(tubes()).toBe(1);
@@ -438,5 +466,115 @@ describe('createAudio', () => {
     releaseMech();
     await flush();
     expect(motors()).toBe(1);
+  });
+  it('powerOff: scatto di spegnimento, ventola, ronzio e tubo fermi', async () => {
+    const { audio, contexts, played, oscs, running } = setup();
+    audio.powerOn();
+    await flush();
+    const before = played().filter(([f]) => f === 'meccanica').length;
+    contexts[0].currentTime = 10;
+    audio.powerOff();
+    const mech = played()
+      .filter(([f]) => f === 'meccanica')
+      .slice(before);
+    expect(mech).toHaveLength(1);
+    expect(near(mech[0][1], MECH.starts[1])).toBe(true);
+    expect(oscs().every((o) => o.stops.length > 0)).toBe(true);
+    // la ventola rallenta: il fischio del motorino si ferma solo alla fine
+    expect(running(WHINE_HZ, 10 + FAN_SPIN_DOWN - 0.5)).toEqual([true]);
+  });
+
+  it("powerOff due volte o prima dell'accensione non fa niente", async () => {
+    const { audio, contexts, played } = setup();
+    audio.powerOff();
+    expect(contexts).toHaveLength(0);
+    audio.powerOn();
+    await flush();
+    audio.powerOff();
+    const n = played().filter(([f]) => f === 'meccanica').length;
+    audio.powerOff();
+    expect(played().filter(([f]) => f === 'meccanica')).toHaveLength(n);
+  });
+
+  it('riaccensione durante il rallentamento: una sola ventola', async () => {
+    const { audio, contexts, mechPlays, running } = setup();
+    audio.powerOn();
+    await flush();
+    contexts[0].currentTime = 10;
+    audio.powerOff();
+    contexts[0].currentTime = 11;
+    const before = mechPlays().length;
+    audio.powerOn();
+    await flush();
+    const on = mechPlays()
+      .slice(before)
+      .filter(([off]) => near(off, MECH.starts[0]));
+    expect(on).toHaveLength(1);
+    expect(running(WHINE_HZ, 11.2).filter(Boolean)).toHaveLength(1);
+  });
+
+  it('reboot: spegnimento e riaccensione a distanza offS, la ventola non si ferma', async () => {
+    const { audio, contexts, mechPlays, oscs } = setup();
+    audio.powerOn();
+    await flush();
+    contexts[0].currentTime = 10;
+    const before = mechPlays().length;
+    audio.reboot(1.7);
+    const mech = mechPlays().slice(before);
+    expect(mech).toHaveLength(2);
+    expect(near(mech[0][0], MECH.starts[1]) && near(mech[0][1], 10.02)).toBe(true);
+    expect(near(mech[1][0], MECH.starts[0]) && near(mech[1][1], 11.72)).toBe(true);
+    expect(oscs().filter((o) => o.startHz === WHINE_HZ && o.stops.length > 0)).toHaveLength(0);
+  });
+
+  it('powerOn ad accensione avvenuta non fa il reboot', async () => {
+    const { audio, played } = setup();
+    audio.powerOn();
+    await flush();
+    const n = played().filter(([f]) => f === 'meccanica').length;
+    audio.powerOn();
+    await flush();
+    expect(played().filter(([f]) => f === 'meccanica')).toHaveLength(n);
+  });
+
+  it("da muto lo spegnimento è muto ma ferma l'ambiente; riaccendere il suono non fa ripartire niente", async () => {
+    const { audio, played, oscs } = setup();
+    audio.powerOn();
+    await flush();
+    audio.setMuted(true);
+    const n = played().filter(([f]) => f === 'meccanica').length;
+    audio.powerOff();
+    expect(played().filter(([f]) => f === 'meccanica')).toHaveLength(n);
+    expect(oscs().filter((o) => o.startHz === WHINE_HZ).every((o) => o.stops.length > 0)).toBe(true);
+    const count = oscs().length;
+    audio.setMuted(false);
+    await flush();
+    expect(oscs()).toHaveLength(count);
+  });
+
+  it('seek a monitor spento restituisce 0', async () => {
+    const { audio, contexts } = setup();
+    audio.powerOn();
+    await flush();
+    contexts[0].currentTime = 30;
+    audio.powerOff();
+    expect(audio.seek(2)).toBe(0);
+  });
+
+  it('spinUp dopo powerOff riaccende con la ventola che riparte', async () => {
+    const { audio, contexts, mechPlays, running } = setup();
+    audio.powerOn();
+    await flush();
+    contexts[0].currentTime = 10;
+    audio.powerOff();
+    contexts[0].currentTime = 12;
+    const before = mechPlays().length;
+    audio.spinUp();
+    await flush();
+    const on = mechPlays()
+      .slice(before)
+      .filter(([off]) => near(off, MECH.starts[0]));
+    expect(on).toHaveLength(1);
+    expect(running(WHINE_HZ, on[0][1] + 0.1).filter(Boolean)).toHaveLength(1);
   });
 });
