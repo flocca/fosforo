@@ -33,7 +33,7 @@ Songs, books (`lettura/<slug>.json`, `lettura/obiettivo.json`), posts, root page
 - Client code is plain TS in Astro `<script>` modules. Dependencies stay as they are: no xterm.js, no Three.js, no `cool-retro-term-renderer`, no UI framework.
 - Client modules import only browser-safe code: never `store.ts`, `render.ts`, `sharp` or `astro:content` (build-only; they would break or bloat the bundle).
 - Every page works as complete HTML without JavaScript; the terminal enhances it.
-- Browser storage keys, always inside try/catch, the site works without storage: `fosforo.fosfori` (`verde|ambra|bianco`, default `verde`), `fosforo.suono` (only ever `spento`; absent = sound on), `fosforo.ultimoBoot` (`YYYY-MM-DD`, visitor local date).
+- Browser storage keys, always inside try/catch, the site works without storage: `fosforo.fosfori` (`verde|ambra|bianco`, default `verde`), `fosforo.suono` (only ever `spento`; absent = sound on), `fosforo.ultimoBoot` (`YYYY-MM-DD`, visitor local date, last completed home boot), `fosforo.ultimaAccensione` (`YYYY-MM-DD`, visitor local date, last completed power-on).
 - `prefers-reduced-motion: reduce`: no power-on glow or power-off collapse, no flicker, warm start instead of full boot.
 - No analytics, cookies or third-party requests at runtime (fonts self-hosted). The only build-time network access is the YouTube thumbnail fetch (cache in `FOSFORO_CACHE`, default `.cache/`).
 - Boot ROM lines are shown unwrapped and clipped on narrow screens: keep them to 34 columns or fewer (a 320 px phone shows about 34).

@@ -13,6 +13,7 @@ export type Screen = {
   remeasure(): void;
   print(blocks: Block[]): void;
   printRom(text: string): void; // riga della ROM: mai a capo, ritagliata a destra
+  printStatic(nodes: Node[]): void; // nodi del livello 0 così come sono, in una riga sola
   echo(command: string): void; // riga del prompt con il comando, come se fosse stato scritto
   clear(): void;
   setPrompt(label: string): void;
@@ -79,12 +80,13 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
   out.setAttribute('role', 'log');
   out.setAttribute('aria-live', 'polite');
 
-  if (keep && pre.childNodes.length) {
+  const staticLine = (nodes: Node[]) => {
     const kept = document.createElement('span');
     kept.className = 'term-line';
-    kept.append(...pre.childNodes, '\n');
-    out.append(kept);
-  }
+    kept.append(...nodes, '\n');
+    return kept;
+  };
+  if (keep && pre.childNodes.length) out.append(staticLine([...pre.childNodes]));
 
   const promptLine = document.createElement('span');
   promptLine.className = 'term-prompt';
@@ -164,6 +166,9 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
       el.classList.add('rom');
       el.lastChild?.remove(); // la riga ROM è un blocco: niente "\n" finale
       appendNodes([el]);
+    },
+    printStatic(nodes) {
+      if (nodes.length) appendNodes([staticLine(nodes)]);
     },
     echo(command) {
       const lines = wrapBlocks([{ type: 'line', spans: [{ text: label.textContent ?? '', style: 'dim' }, { text: command }] }], cols);

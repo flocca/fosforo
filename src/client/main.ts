@@ -147,7 +147,7 @@ async function main() {
   const page = document.body.dataset.page ?? 'item';
   // Il livello 0 della pagina di un elemento, com'era prima del terminale: lo schermo lo
   // sposta nel suo output, qui ne resta una copia per l'accensione da link.
-  let level0: Node[] = page === 'item' ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
+  const level0: Node[] = page === 'item' ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
   // La pagina di un elemento tiene il livello 0 finché il gemello JSON non è arrivato:
   // senza rete resta il contenuto statico, con il prompt sotto.
   const screen = createScreen(pre, { keep: page !== 'home' });
@@ -292,6 +292,7 @@ async function main() {
       screen.clear();
       term.setCwd('');
       router.navigate('', 'push');
+      linkPath = null;
       await boot(reduced ? 'warm' : 'cold');
     },
     // il risultato di un comando aspetta la testina, ma non più di DISK_WAIT_MAX_S
@@ -347,9 +348,10 @@ async function main() {
 
   // Mostra l'elemento di un indirizzo come se fosse stato aperto dalla radice; la cartella
   // attuale diventa quella dell'elemento (la cartella stessa per una cartella).
-  async function showPath(path: string) {
+  // Con `clear: false` (accensione da un link) quello che è a schermo resta sopra il comando.
+  async function showPath(path: string, { clear = true }: { clear?: boolean } = {}) {
     const node = await nodeFor(path);
-    screen.clear();
+    if (clear) screen.clear();
     term.setCwd('');
     await runEcho(promptCommand(path, node?.type === 'dir'));
     if (!node) {
@@ -365,7 +367,10 @@ async function main() {
   // Righe della ROM, poi benvenuto e prompt. Gira dentro la coda dei comandi.
   // L'alone dura fino alla prima riga; il giorno si salva solo a boot finito, così un boot
   // interrotto dallo spegnimento si rifà completo alla prossima accensione.
-  async function boot(kind: 'cold' | 'warm') {
+  // Con `link` (link aperto spento): niente benvenuto, la riga della ROM resta e sotto compare
+  // il contenuto del link; il giorno del boot non si scrive, quello dell'accensione sì (a contenuto
+  // a schermo).
+  async function boot(kind: 'cold' | 'warm', link?: string) {
     setPower('warming');
     screen.clear();
     screen.showPrompt(false);
@@ -389,11 +394,38 @@ async function main() {
     booting = null;
     // interrotto dallo spegnimento: niente benvenuto né prompt
     if (!completed) return;
+    if (link !== undefined) return showLink(link);
+    prefs.setLastPowerOn(localToday());
     prefs.setLastBoot(localToday());
     const touch = isCoarsePointer();
     const welcome = (touch && site.boot.welcomeTouch) || site.boot.welcome;
     screen.print([{ type: 'blank' }, { type: 'line', spans: welcomeSpans(welcome) }, { type: 'blank' }]);
     setPower('on');
+    screen.showPrompt(true);
+    if (isDesktop()) screen.focus();
+  }
+
+  // Dopo la riga della ROM: una riga vuota, il `cat` del link e il suo contenuto, con il
+  // gemello scaricato a monitor spento. Senza gemello torna il livello 0 della pagina, con la
+  // cartella dell'elemento. L'indirizzo si sostituisce, come aprendo il link acceso.
+  async function showLink(link: string) {
+    screen.print([{ type: 'blank' }]);
+    // il comando del link si scrive solo a monitor acceso; da qui il monitor è come la home
+    setPower('on');
+    linkPath = null;
+    const twin = await linkTwin;
+    const node = findByPath(root, link);
+    await router.replay(async () => {
+      if (twin || node?.type === 'link') return showPath(link, { clear: false });
+      screen.printStatic(level0);
+      const shown = node?.type === 'alias' && node.target ? node.target : node?.path;
+      if (node?.type === 'dir') term.setCwd(node.path);
+      else if (shown !== undefined) term.setCwd(parentOf(shown));
+      router.navigate(link, 'push');
+    });
+    // spento mentre aspettava il gemello: resta spento, e l'accensione non conta
+    if (power !== 'on') return;
+    prefs.setLastPowerOn(localToday());
     screen.showPrompt(true);
     if (isDesktop()) screen.focus();
   }
@@ -404,6 +436,11 @@ async function main() {
     setPower('warming');
     switchedAt = performance.now();
     audio.powerOn();
+    if (linkPath !== null) {
+      const link = linkPath;
+      exec(() => boot('warm', link));
+      return;
+    }
     const start = decideStart({ page: 'home', lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() });
     exec(() => boot(start === 'power-cold' ? 'cold' : 'warm'));
   }

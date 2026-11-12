@@ -1,6 +1,7 @@
 // Link profondo aperto la prima volta del giorno: monitor spento, contenuto leggibile sotto il velo.
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { FIRST_ROM, output, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
 
 test.use({ poweredToday: false, viewport: { width: 1280, height: 800 } });
 
@@ -100,4 +101,115 @@ test('Review Focus 2: senza indice si riaccende', async ({ page }) => {
   await expect(page.locator('html')).not.toHaveClass(/power-pending/);
   await expect(screenEl(page)).not.toHaveClass(/is-off/);
   await expect(page.locator('#screen').getByText(SONG_TITLE).first()).toBeVisible();
+});
+
+// ── dopo il gesto: prima riga della ROM, poi il comando e il contenuto ─────
+
+test('un clic: ROM, comando, contenuto', async ({ page }) => {
+  await today(page);
+  await page.goto(SONG);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  const t0 = Date.now();
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible({ timeout: 3000 });
+  await expect(output(page)).toContainText(SONG_TITLE, { timeout: 3000 });
+  expect(Date.now() - t0).toBeLessThan(3000);
+  const text = (await output(page).textContent()) ?? '';
+  const rom = text.indexOf(FIRST_ROM);
+  const cmd = text.indexOf(`cat ${SONG}`);
+  const title = text.indexOf(SONG_TITLE);
+  expect(rom).toBeGreaterThanOrEqual(0);
+  expect(cmd).toBeGreaterThan(rom);
+  expect(title).toBeGreaterThan(cmd);
+  expect(text).not.toContain(WELCOME);
+  expect(text).not.toContain(SECOND_ROM);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+  await expect(page).toHaveURL(new RegExp(`${SONG}$`));
+});
+
+test("scrive il giorno dell'accensione, non quello del boot", async ({ page }) => {
+  await today(page);
+  await page.goto(SONG);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  const keys = await page.evaluate(() => ({
+    powerOn: localStorage.getItem('fosforo.ultimaAccensione'),
+    boot: localStorage.getItem('fosforo.ultimoBoot'),
+  }));
+  expect(keys).toEqual({ powerOn: '2026-11-11', boot: null });
+});
+
+test('Review Focus 5: ricaricando resta acceso', async ({ page }) => {
+  await today(page);
+  await page.goto(SONG);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  await page.reload();
+  await expect(prompt(page)).toBeVisible();
+  await expect(screenEl(page)).not.toHaveClass(/is-off/);
+});
+
+test('canzone-del-giorno', async ({ page }) => {
+  await today(page);
+  await page.goto('/canzone-del-giorno');
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  await expect(output(page)).toContainText(SONG_TITLE);
+  await expect(page).toHaveURL(new RegExp(`${SONG}$`));
+});
+
+test('Review Focus 1: senza gemello resta il contenuto', async ({ page }) => {
+  await today(page);
+  await page.route(`**/_fs${SONG}.json`, (r) => r.abort());
+  await page.goto(SONG);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  await expect(output(page).getByText(SONG_TITLE).first()).toBeVisible();
+  await expect(output(page)).toContainText(FIRST_ROM);
+  await expect(output(page)).not.toContainText('impossibile leggere il file');
+  await expect(page.locator('#screen .term-prompt')).toContainText('~/canzoni $');
+});
+
+test('Review Focus 3: INVIO su un link sotto il velo accende', async ({ page }) => {
+  await today(page);
+  await page.goto(SONG);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  let onLink = false;
+  for (let i = 0; i < 30 && !onLink; i++) {
+    await page.keyboard.press('Tab');
+    onLink = await page.evaluate(() => !!document.activeElement?.closest('#screen a'));
+  }
+  expect(onLink).toBe(true);
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.power-led')).toHaveClass(/is-on/);
+  await expect(prompt(page)).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${SONG}$`));
+});
+
+test('Review Focus 4: spento e riacceso, si comporta come la home', async ({ page }) => {
+  await today(page);
+  await page.goto(SONG);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  await prompt(page).fill('shutdown');
+  await prompt(page).press('Enter');
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  await screenEl(page).click();
+  await expect(romLines(page, SECOND_ROM)).toHaveCount(1);
+  await expect(output(page)).toContainText(WELCOME);
+  await expect(output(page)).not.toContainText(SONG_TITLE);
+});
+
+test('movimento ridotto', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await today(page);
+  await page.goto(SONG);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  const t0 = Date.now();
+  await screenEl(page).click();
+  await expect(output(page)).toContainText(SONG_TITLE, { timeout: 1000 });
+  expect(Date.now() - t0).toBeLessThan(1000);
+  await expect(output(page)).toContainText(FIRST_ROM);
 });
