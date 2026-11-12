@@ -40,6 +40,8 @@ test('spento ma leggibile', async ({ page }) => {
   await expect(page.locator('#screen').getByText(SONG_TITLE).first()).toBeAttached();
   const name = await page.locator('.power-button').getAttribute('aria-label');
   expect(name).toMatch(/^Accendi il monitor: /);
+  // la bozza resta solo nel nome accessibile: il tooltip è quello della home
+  expect(await page.locator('.power-button').getAttribute('title')).toBe('Accendi');
   await expect(page.locator('.power-button')).toBeEnabled();
 });
 
@@ -120,6 +122,11 @@ test('un clic: ROM, comando, contenuto', async ({ page }) => {
   const title = text.indexOf(SONG_TITLE);
   expect(rom).toBeGreaterThanOrEqual(0);
   expect(cmd).toBeGreaterThan(rom);
+  // una riga vuota fra la riga della ROM e quella del comando
+  const lines = await output(page).locator('.term-line').allTextContents();
+  const romAt = lines.findIndex((l) => l.includes(FIRST_ROM));
+  expect(lines[romAt + 1].trim()).toBe('');
+  expect(lines[romAt + 2]).toContain(`cat ${SONG}`);
   expect(title).toBeGreaterThan(cmd);
   expect(text).not.toContain(WELCOME);
   expect(text).not.toContain(SECOND_ROM);
@@ -207,9 +214,59 @@ test('movimento ridotto', async ({ page }) => {
   await today(page);
   await page.goto(SONG);
   await expect(page.locator('.power-button')).toBeEnabled();
+  await page.evaluate(() => {
+    const el = document.querySelector('.screen')!;
+    new MutationObserver(() => {
+      if (el.classList.contains('is-warming')) (window as { warmed?: boolean }).warmed = true;
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
   const t0 = Date.now();
   await screenEl(page).click();
-  await expect(output(page)).toContainText(SONG_TITLE, { timeout: 1000 });
-  expect(Date.now() - t0).toBeLessThan(1000);
+  // sotto i 1500 ms che l'accensione senza movimento ridotto non può battere (alone di 1200 ms)
+  await expect(output(page)).toContainText(SONG_TITLE, { timeout: 1400 });
+  expect(Date.now() - t0).toBeLessThan(1400);
   await expect(output(page)).toContainText(FIRST_ROM);
+  expect(await page.evaluate(() => (window as { warmed?: boolean }).warmed ?? false)).toBe(false);
+});
+
+test('Review Focus 1: gemello che non arriva, resta il contenuto', async ({ page }) => {
+  await today(page);
+  // la richiesta resta appesa: non si risponde mai
+  await page.route(`**/_fs${SONG}.json`, () => {});
+  await page.goto(SONG);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible({ timeout: 5000 });
+  await expect(output(page).getByText(SONG_TITLE).first()).toBeVisible();
+  await expect(output(page)).toContainText(FIRST_ROM);
+  await expect(output(page)).not.toContainText('impossibile leggere il file');
+});
+
+test('nome del pulsante su una cartella, senza il nome del sito', async ({ page }) => {
+  await today(page);
+  await page.goto('/canzoni');
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+  const name = await page.locator('.power-button').getAttribute('aria-label');
+  expect(name).toMatch(/^Accendi il monitor: /);
+  expect(name).not.toContain('·');
+  expect(name).not.toContain('example.com');
+});
+
+test('indice che non arriva: il contenuto torna visibile', async ({ page }) => {
+  await page.route('**/_fs/index.json', () => {});
+  await page.goto(SONG);
+  await expect(page.locator('html')).not.toHaveClass(/power-pending/, { timeout: 6000 });
+  await expect(screenEl(page)).not.toHaveClass(/is-off/);
+  await expect(page.locator('#screen').getByText(SONG_TITLE).first()).toBeVisible();
+});
+
+test('acceso dalla home, il link dello stesso giorno si apre acceso', async ({ page }) => {
+  await today(page);
+  await page.goto('/');
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible({ timeout: 15000 });
+  await page.goto(SONG);
+  await expect(prompt(page)).toBeVisible();
+  await expect(screenEl(page)).not.toHaveClass(/is-off/);
 });

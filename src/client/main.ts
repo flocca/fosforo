@@ -40,6 +40,12 @@ const SWITCH_GUARD_MS = 400;
 // Nome del pulsante di accensione su un link aperto spento, seguito dal titolo della pagina.
 // Bozza, da approvare da Giacomo.
 const POWER_ON_LINK_LABEL = 'Accendi il monitor: ';
+// Dopo il gesto su un link aperto spento, il gemello JSON si aspetta al massimo così:
+// una richiesta appesa non lascia lo schermo con la sola riga della ROM, torna il livello 0.
+const LINK_TWIN_WAIT_MS = 1200;
+// Pagina di un elemento: se l'indice non arriva entro questo tempo lo schermo si riaccende
+// con il livello 0 (come quando il client non parte) e non si spegne più quando arriva.
+const INDEX_WAIT_MS = 3000;
 
 const currentPhosphor = (): Phosphor => {
   const v = document.documentElement.dataset.fosfori as Phosphor;
@@ -134,9 +140,20 @@ async function main() {
     return;
   }
   let index: SiteIndex;
+  // la home resta spenta ad aspettare l'indice; una pagina di un elemento no
+  let indexLate = false;
+  const lateTimer =
+    document.body.dataset.page === 'home'
+      ? undefined
+      : setTimeout(() => {
+          indexLate = true;
+          html.classList.remove('power-pending');
+        }, INDEX_WAIT_MS);
   try {
     index = await loadIndex();
+    clearTimeout(lateTimer);
   } catch (e) {
+    clearTimeout(lateTimer);
     // senza indice resta la pagina statica, che funziona da sola: si riaccende lo schermo
     console.error('terminale non avviato', e);
     html.classList.remove('power-pending');
@@ -226,9 +243,10 @@ async function main() {
   const setPower = (next: Power) => {
     power = next;
     if (!powerButton) return;
-    const name = next === 'off' && linkPath !== null ? linkName : next === 'off' || next === 'collapsing' ? 'Accendi' : 'Spegni';
+    const name = next === 'off' || next === 'collapsing' ? 'Accendi' : 'Spegni';
     powerButton.disabled = next === 'warming' || next === 'collapsing';
-    powerButton.setAttribute('aria-label', name);
+    // il nome del link è solo per i lettori di schermo: il tooltip resta quello della home
+    powerButton.setAttribute('aria-label', next === 'off' && linkPath !== null ? linkName : name);
     powerButton.title = name;
   };
 
@@ -413,7 +431,7 @@ async function main() {
     // il comando del link si scrive solo a monitor acceso; da qui il monitor è come la home
     setPower('on');
     linkPath = null;
-    const twin = await linkTwin;
+    const twin = await Promise.race([linkTwin, sleep(LINK_TWIN_WAIT_MS).then(() => null)]);
     const node = findByPath(root, link);
     await router.replay(async () => {
       if (twin || node?.type === 'link') return showPath(link, { clear: false });
@@ -577,7 +595,10 @@ async function main() {
   function startItemOff() {
     const path = document.body.dataset.path ?? currentPath();
     linkPath = path;
-    linkName = `${POWER_ON_LINK_LABEL}${findByPath(root, path)?.title ?? document.title}`;
+    // il titolo della pagina finisce con " · host": nel nome del pulsante basta l'elemento
+    const suffix = ` · ${site.host}`;
+    const pageTitle = document.title.endsWith(suffix) ? document.title.slice(0, -suffix.length) : document.title;
+    linkName = `${POWER_ON_LINK_LABEL}${findByPath(root, path)?.title ?? pageTitle}`;
     screen.showPrompt(false);
     setScreenOn(false);
     setPower('off');
@@ -592,7 +613,8 @@ async function main() {
     if (page === 'home') return router.replay(startHome);
     if (page === 'item') {
       const kind = decideStart({ page, lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() });
-      if (kind === 'power-link') return startItemOff();
+      // con l'indice in ritardo il contenuto è già tornato visibile: non si spegne più
+      if (kind === 'power-link' && !indexLate) return startItemOff();
     }
     setScreenOn(true);
     setPower('on');
