@@ -328,6 +328,21 @@ describe('createAudio', () => {
     expect(master()).toBe(0);
   });
 
+  it('seek dice per quanti secondi lavora la testina: 0 se non suona', async () => {
+    const { audio, contexts } = setup();
+    expect(audio.seek(2)).toBe(0);
+    audio.powerOn();
+    await flush();
+    // dopo la ricalibrazione dell'accensione, il disco è libero
+    contexts[0].currentTime = 30;
+    const s = audio.seek(2);
+    // due movimenti: almeno due passi (0,08 s nel file finto) e le pause di lettura
+    expect(s).toBeGreaterThan(0.16);
+    expect(s).toBeLessThan(3);
+    audio.setMuted(true);
+    expect(audio.seek(2)).toBe(0);
+  });
+
   it('seek: con il floppy caricato muove la testina con pezzi del floppy', async () => {
     const { audio, played } = setup();
     audio.powerOn();

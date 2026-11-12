@@ -16,7 +16,8 @@ export interface Terminal {
   setPhosphor(p: Phosphor): void;
   sound: { muted: boolean; setMuted(m: boolean): void };
   reboot(): void | Promise<void>; // finisce quando il nuovo boot è concluso
-  diskSeek(n: number): void;
+  /** Muove il disco; finisce quando il risultato può comparire (subito, se il disco non suona). */
+  diskSeek(n: number): Promise<void> | void;
 }
 
 // Nell'ordine di `help`.
@@ -62,16 +63,18 @@ export function createShell(root: FsNode, term: Terminal) {
       // resolvePath tratta '' come la radice: senza argomento si elenca la cartella attuale
       const node = arg ? resolvePath(root, term.cwd, arg) : findByPath(root, term.cwd);
       if (!node) return notFound('ls', arg);
+      // il disco legge la cartella, come per `cat` ma più breve: parte subito, e il
+      // risultato compare quando ha finito
+      const disk = term.diskSeek(2);
       if (node.type !== 'dir') {
-        term.diskSeek(2);
+        await disk;
         term.print([line(t(node.name))]);
         return true;
       }
       // La forma di una cartella è quella del suo gemello JSON (`lettura/` ha il riepilogo
       // delle letture); senza rete basta l'elenco dell'albero.
       const blocks = (await term.fetchBlocks(node.path)) ?? listing(node);
-      // il disco legge la cartella, come per `cat` ma più breve
-      term.diskSeek(2);
+      await disk;
       term.print(blocks);
       return true;
     },
@@ -95,9 +98,11 @@ export function createShell(root: FsNode, term: Terminal) {
         term.print([line(t(`${node.title ?? node.name}: `), t(node.target ?? '', { href: node.target }))]);
         return true;
       }
+      // il disco parte subito e lavora mentre il file arriva dalla rete
+      const disk = term.diskSeek(4);
       const blocks = await term.fetchBlocks(node.path);
+      await disk;
       if (!blocks) return err(t(`cat: ${arg}: impossibile leggere il file`));
-      term.diskSeek(4);
       term.print(blocks);
       term.navigate(node.path, 'push');
       return true;

@@ -28,6 +28,8 @@ const audio = createAudio();
 
 const parentOf = (path: string) => path.split('/').slice(0, -1).join('/');
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+// la pausa più lunga prima del risultato di un comando che usa il disco (cat, ls)
+const DISK_WAIT_MAX_S = 0.5;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const REBOOT_OFF_MS = 400;
 const FLASH_MS = 500;
@@ -237,7 +239,11 @@ async function main() {
       router.navigate('', 'push');
       await boot(reducedMotion() ? 'warm' : 'cold');
     },
-    diskSeek: (n) => audio.seek(n),
+    // il risultato di un comando aspetta la testina, ma non più di DISK_WAIT_MAX_S
+    diskSeek: (n) => {
+      const s = audio.seek(n);
+      return s > 0 ? sleep(Math.min(s, DISK_WAIT_MAX_S) * 1000) : undefined;
+    },
   };
   term.setCwd('');
 

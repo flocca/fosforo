@@ -65,6 +65,37 @@ describe('shell', () => {
     expect(t.navigations).toEqual([['chi-sono', 'push']]);
   });
 
+  it('cat: il disco parte prima di leggere il file, il contenuto compare quando ha finito', async () => {
+    const term = fakeTerminal();
+    const order: string[] = [];
+    let diskDone = () => {};
+    term.diskSeek = (n) => {
+      order.push(`disco ${n}`);
+      return new Promise<void>((r) => (diskDone = r));
+    };
+    const fetch = term.fetchBlocks;
+    term.fetchBlocks = (p) => (order.push('lettura'), fetch(p));
+    const run = createShell(root, term).run('cat chi-sono');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(order).toEqual(['disco 4', 'lettura']);
+    expect(term.printed).toEqual([]);
+    diskDone();
+    await run;
+    expect(term.text()).toEqual(['contenuto di chi-sono']);
+  });
+
+  it('ls: l\'elenco compare quando il disco ha finito', async () => {
+    const term = fakeTerminal();
+    let diskDone = () => {};
+    term.diskSeek = () => new Promise<void>((r) => (diskDone = r));
+    const run = createShell(root, term).run('ls');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(term.printed).toEqual([]);
+    diskDone();
+    await run;
+    expect(term.printed).toHaveLength(1);
+  });
+
   it('cat canzone-del-giorno va alla canzone più recente', async () => {
     const t = await run('cat canzone-del-giorno');
     expect(t.text()).toEqual(['contenuto di canzoni/2026-11-10']);

@@ -21,8 +21,8 @@ export type SiteAudio = {
   powerOn(): void;
   /** Link profondo, al primo gesto: interruttore e ventola che riparte in fretta (~1,5 s), poi l'ambiente. */
   spinUp(): void;
-  /** `n` movimenti della testina del floppy; non fa niente prima dell'accensione. */
-  seek(n: number): void;
+  /** `n` movimenti della testina del floppy. Dice fra quanti secondi la testina ha finito: 0 se non suona (prima dell'accensione, da muto, senza registrazioni). */
+  seek(n: number): number;
   /** Un tasto della cornice (suono, fosfori): pressione e rilascio insieme (Invio, clic senza pressione). */
   press(): void;
   /** Il tasto della cornice che scende: mouse, dito o barra spaziatrice premuti. */
@@ -354,7 +354,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
 
     seek(n) {
       // a contesto sospeso gli scatti si accumulerebbero e uscirebbero tutti insieme alla ripresa
-      if (!ctx || muted || ctx.state !== 'running' || !floppy) return;
+      if (!ctx || muted || ctx.state !== 'running' || !floppy) return 0;
       let at = Math.max(now(), diskFree);
       if (!motor) {
         motorOn(at);
@@ -368,6 +368,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       diskFree = at;
       busy(at);
       motorIdle();
+      return at - ctx.currentTime;
     },
 
     press() {
