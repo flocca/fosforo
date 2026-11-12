@@ -43,6 +43,9 @@ test.describe('desktop', () => {
   test('immagine di un post attraverso il fosforo', async ({ page }) => {
     await withPhosphor(page, 'verde');
     await page.goto('/post/2026-01-05-prova');
+    // il terminale ridisegna la pagina statica dal gemello JSON (anche 1 s dopo, aspettando il font):
+    // il prompt prende il fuoco solo a disegno finito, prima l'immagine può essere sostituita
+    await expect(page.getByRole('textbox', { name: 'Comando' })).toBeFocused();
     const img = page.locator('.ph-img img');
     await img.scrollIntoViewIfNeeded();
     await expect(img).toHaveJSProperty('complete', true);
