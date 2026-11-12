@@ -87,12 +87,12 @@ export function buildStoreFrom(input: StoreInput): Store {
   if (posts.length) {
     const postNodes: FsNode[] = [];
     for (const p of posts) {
-      assertMarkdownBody(p.body, `post/${p.slug}/index.md`);
-      const path = `post/${p.slug}`;
+      assertMarkdownBody(p.body, `messaggi/${p.slug}/index.md`);
+      const path = `messaggi/${p.slug}`;
       items.set(path, { kind: 'post', path, data: p.data, body: p.body, ...(p.images ? { images: p.images } : {}) });
       postNodes.push({ name: p.slug, path, type: 'file', title: p.data.title });
     }
-    rootChildren.push({ name: 'post', path: 'post', type: 'dir', children: postNodes });
+    rootChildren.push({ name: 'messaggi', path: 'messaggi', type: 'dir', children: postNodes });
   }
 
   // Pagine: per `order`, poi per nome
@@ -127,7 +127,7 @@ export async function postImageSizes(dir: string): Promise<ImageSizes> {
   const { join } = await import('node:path');
   const { imageSize } = await import('./image-size');
   const { contentDir } = await import('./content-dir');
-  const folder = join(contentDir(), 'post', dir);
+  const folder = join(contentDir(), 'messaggi', dir);
   const sizes: ImageSizes = {};
   for (const file of await readdir(folder).catch(() => [] as string[])) {
     if (!/\.(jpe?g|png|webp|gif|avif|tiff?)$/i.test(file)) continue;
@@ -154,7 +154,7 @@ async function buildStoreUncached(): Promise<Store> {
     getCollection('lettura'),
     getCollection('noteLettura'),
     getCollection('obiettivo'),
-    getCollection('post'),
+    getCollection('messaggi'),
     getCollection('pagine'),
     getCollection('sito'),
   ]);
@@ -167,7 +167,7 @@ async function buildStoreUncached(): Promise<Store> {
     goal: goals[0]?.data,
     posts: await Promise.all(
       posts.map(async (e) => {
-        const slug = e.id.replace(/^post\//, '');
+        const slug = e.id.replace(/^messaggi\//, '');
         return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug) };
       }),
     ),

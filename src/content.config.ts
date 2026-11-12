@@ -24,7 +24,7 @@ export const collections = {
     loader: glob({ pattern: 'lettura/obiettivo.json', base }),
     schema: goalSchema,
   }),
-  post: defineCollection({ loader: glob({ pattern: 'post/*/index.md', base }), schema: postSchema }),
+  messaggi: defineCollection({ loader: glob({ pattern: 'messaggi/*/index.md', base }), schema: postSchema }),
   pagine: defineCollection({
     loader: glob({ pattern: ['*.md', '!README.md', '!CLAUDE.md', '!AGENTS.md'], base }),
     schema: pageSchema,

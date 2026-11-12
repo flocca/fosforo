@@ -29,7 +29,7 @@ test('il monitor ha interruttore, tasto del suono e tre spie', async ({ page }) 
 test.describe('telefono a 320 px', () => {
   test.use({ viewport: { width: 320, height: 640 } });
 
-  for (const url of ['/', '/post/2026-01-05-prova', '/lettura/termination-shock']) {
+  for (const url of ['/', '/messaggi/2026-01-05-prova', '/lettura/termination-shock']) {
     test(`niente scorrimento orizzontale in ${url}`, async ({ page }) => {
       await page.goto(url);
       const { sw, cw } = await page.evaluate(() => ({

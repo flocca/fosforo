@@ -42,7 +42,7 @@ describe('albero dei file', () => {
 
   it('radice nell\'ordine atteso', () => {
     expect(root.children!.map((c) => c.name)).toEqual(
-      ['canzone-del-giorno', 'canzoni', 'lettura', 'post', 'chi-sono', 'owlcavelabs'],
+      ['canzone-del-giorno', 'canzoni', 'lettura', 'messaggi', 'chi-sono', 'owlcavelabs'],
     );
   });
   it('senza canzoni mancano alias e cartella; senza libri manca lettura', () => {
@@ -62,7 +62,7 @@ describe('albero dei file', () => {
   it('resolvePath', () => {
     expect(resolvePath(root, 'canzoni', '..')).toBe(root);
     expect(resolvePath(root, '', 'canzoni/')!.path).toBe('canzoni');
-    expect(resolvePath(root, 'post', '/lettura')!.path).toBe('lettura');
+    expect(resolvePath(root, 'messaggi', '/lettura')!.path).toBe('lettura');
     expect(resolvePath(root, 'canzoni', '~')).toBe(root);
     expect(resolvePath(root, '', 'nope')).toBeNull();
   });
@@ -77,8 +77,9 @@ describe('albero dei file', () => {
     expect(link.cmd).toBeUndefined();
   });
   it('bozze assenti, note attaccate al libro', () => {
-    expect(findByPath(root, 'post')!.children!.map((c) => c.name)).toEqual(['2026-01-05-prova']);
-    expect(store.items.has('post/2026-02-01-bozza')).toBe(false);
+    expect(findByPath(root, 'messaggi')!.children!.map((c) => c.name)).toEqual(['2026-01-05-prova']);
+    expect(findByPath(root, 'post')).toBeNull();
+    expect(store.items.has('messaggi/2026-02-01-bozza')).toBe(false);
     const b = store.items.get('lettura/termination-shock')!;
     expect(b.kind === 'book' && b.note).toBe('bello');
   });

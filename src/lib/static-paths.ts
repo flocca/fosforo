@@ -46,7 +46,7 @@ export function pageMeta(path: string, store: Store): PageMeta | null {
   if (node.path === '') {
     return {
       title: host,
-      description: `${host}: canzoni, letture e pagine, in forma di terminale.`,
+      description: clip(store.site.description ?? `${host}: canzoni, letture e pagine, in forma di terminale.`),
       canonical: '/',
       ogPath: '/og/home.png',
       page: 'home',

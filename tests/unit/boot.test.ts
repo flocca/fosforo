@@ -179,4 +179,30 @@ describe('welcomeSpans', () => {
     expect(welcomeSpans('Ciao.')).toEqual([{ text: 'Ciao.' }]);
     expect(welcomeSpans('helpdesk aperto')).toEqual([{ text: 'helpdesk aperto' }]);
   });
+
+  it('rende cliccabili ls e help', () => {
+    expect(welcomeSpans('Scrivi ls per vedere cosa è arrivato, help per i comandi.')).toEqual([
+      { text: 'Scrivi ' },
+      { text: 'ls', cmd: 'ls' },
+      { text: ' per vedere cosa è arrivato, ' },
+      { text: 'help', cmd: 'help' },
+      { text: ' per i comandi.' },
+    ]);
+  });
+
+  it('help prima di ls', () => {
+    expect(welcomeSpans('help oppure ls')).toEqual([
+      { text: 'help', cmd: 'help' },
+      { text: ' oppure ' },
+      { text: 'ls', cmd: 'ls' },
+    ]);
+  });
+
+  it('ls dentro una parola resta testo', () => {
+    expect(welcomeSpans('falso e alls')).toEqual([{ text: 'falso e alls' }]);
+  });
+
+  it('solo la prima occorrenza', () => {
+    expect(welcomeSpans('ls e ancora ls').filter((s) => s.cmd)).toHaveLength(1);
+  });
 });

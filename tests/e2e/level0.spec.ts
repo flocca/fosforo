@@ -58,7 +58,7 @@ test('immagine OG e immagine della canzone', async ({ request }) => {
   const og = await request.get('/og/canzoni/2026-11-10.png');
   expect(og.status()).toBe(200);
   expect(og.headers()['content-type']).toContain('image/png');
-  const img = await request.get('/_img/post/2026-01-05-prova/foto.png');
+  const img = await request.get('/_img/messaggi/2026-01-05-prova/foto.png');
   expect(img.status()).toBe(200);
   expect((await request.get('/og/home.png')).status()).toBe(200);
 });
@@ -87,8 +87,8 @@ test.describe('404 con JavaScript', () => {
   });
 
   test('un altro percorso inesistente rimanda alla home', async ({ page }) => {
-    await page.goto('/post/non-c-e');
-    await expect(page.locator('#screen')).toContainText('cat: /post/non-c-e: file o cartella inesistente');
+    await page.goto('/messaggi/non-c-e');
+    await expect(page.locator('#screen')).toContainText('cat: /messaggi/non-c-e: file o cartella inesistente');
     await expect(page.locator('#back')).toHaveAttribute('href', '/');
   });
 });
