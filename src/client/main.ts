@@ -192,8 +192,10 @@ async function main() {
 
   const { root, site } = index;
   // Il livello 0 della pagina di un elemento, com'era prima del terminale: lo schermo lo
-  // sposta nel suo output, qui ne resta una copia per l'accensione da link.
-  const level0: Node[] = page === 'item' ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
+  // sposta nel suo output, qui ne resta una copia per l'accensione da link (solo se il link si
+  // apre spento: altrimenti non serve).
+  const opensOff = itemStart === 'power-link' && !indexLate;
+  const level0: Node[] = opensOff ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
   // La pagina di un elemento tiene il livello 0 finché il gemello JSON non è arrivato:
   // senza rete resta il contenuto statico, con il prompt sotto.
   const screen = createScreen(pre, { keep: page !== 'home' });
@@ -424,7 +426,9 @@ async function main() {
     screen.showPrompt(false);
     setScreenOn(true);
     warmUp(screenEl);
-    const song = index.latestSong;
+    // sull'avvio da link niente valori: le righe con {canzone} e {data} saltano, così un link
+    // vecchio non annuncia la canzone di oggi
+    const song = link === undefined ? index.latestSong : undefined;
     const run = runBoot({
       kind,
       rom: site.boot.rom,
@@ -555,7 +559,13 @@ async function main() {
   }
 
   powerButton?.addEventListener('click', () => (power === 'off' ? powerOn() : powerOff()));
-  screenEl.addEventListener('click', () => (power === 'off' ? powerOn() : skipBoot()));
+  screenEl.addEventListener('click', (e) => {
+    if (power !== 'off') return skipBoot();
+    // a monitor spento un clic su un link sotto il velo (un lettore di schermo che lo attiva)
+    // accende e basta, come INVIO: il link non porta altrove
+    e.preventDefault();
+    powerOn();
+  });
   document.addEventListener('keydown', (e) => {
     if (power === 'off') {
       // INVIO su un tasto del pannello lo preme già da sé
@@ -645,7 +655,7 @@ async function main() {
   const start = async () => {
     if (page === 'home') return router.replay(startHome);
     // con l'indice in ritardo il contenuto è già tornato visibile: non si spegne più
-    if (itemStart === 'power-link' && !indexLate) return startItemOff();
+    if (opensOff) return startItemOff();
     setScreenOn(true);
     setPower('on');
     if (page === '404') return startNotFound();

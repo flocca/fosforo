@@ -194,6 +194,41 @@ test('Review Focus 3: INVIO su un link sotto il velo accende', async ({ page }) 
   await expect(page).toHaveURL(new RegExp(`${SONG}$`));
 });
 
+test('clic di un lettore di schermo su un link sotto il velo: accende e resta sul link', async ({ page }) => {
+  await today(page);
+  // una cartella: i suoi elementi sono link interni del sito
+  await page.goto('/lettura');
+  await expect(page.locator('.power-button')).toBeEnabled();
+  // il clic che manda un lettore di schermo: niente tasto, niente puntatore
+  const clicked = await page.evaluate(() => {
+    const a = document.querySelector<HTMLAnchorElement>('#screen a[href^="/"]');
+    a?.click();
+    return !!a;
+  });
+  expect(clicked).toBe(true);
+  await expect(prompt(page)).toBeVisible();
+  await expect(output(page)).toContainText('/lettura');
+  await expect(page).toHaveURL(/\/lettura$/);
+  const powerOn = await page.evaluate(() => localStorage.getItem('fosforo.ultimaAccensione'));
+  expect(powerOn).toBe('2026-11-11');
+});
+
+test("righe della ROM con {data}: non compaiono nell'avvio da link", async ({ page }) => {
+  await today(page);
+  await page.route('**/_fs/index.json', async (route) => {
+    const res = await route.fetch();
+    const json = await res.json();
+    json.site.boot.rom.unshift({ text: 'LOADING {data}', pause: 100 });
+    await route.fulfill({ response: res, json });
+  });
+  await page.goto(SONG);
+  await expect(page.locator('.power-button')).toBeEnabled();
+  await screenEl(page).click();
+  await expect(prompt(page)).toBeVisible();
+  await expect(output(page)).not.toContainText('LOADING');
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
+});
+
 test('Review Focus 4: spento e riacceso, si comporta come la home', async ({ page }) => {
   await today(page);
   await page.goto(SONG);
