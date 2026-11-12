@@ -5,6 +5,7 @@ import { PHOSPHORS, type Phosphor } from './shell';
 const KEY_PHOSPHOR = 'fosforo.fosfori';
 const KEY_SOUND = 'fosforo.suono';
 const KEY_LAST_BOOT = 'fosforo.ultimoBoot';
+const KEY_LAST_POWER_ON = 'fosforo.ultimaAccensione';
 
 function read(key: string): string | null {
   try {
@@ -48,4 +49,14 @@ export function getLastBoot(): string | null {
 
 export function setLastBoot(date: string) {
   write(KEY_LAST_BOOT, date);
+}
+
+// Giorno in cui il visitatore ha acceso il monitor (con l'interruttore o da una pagina di un elemento).
+export function getLastPowerOn(): string | null {
+  const v = read(KEY_LAST_POWER_ON);
+  return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
+}
+
+export function setLastPowerOn(date: string) {
+  write(KEY_LAST_POWER_ON, date);
 }

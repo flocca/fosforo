@@ -392,7 +392,7 @@ async function main() {
     setPower('warming');
     switchedAt = performance.now();
     audio.powerOn();
-    const start = decideStart({ page: 'home', lastBoot: prefs.getLastBoot(), today: localToday(), reducedMotion: reducedMotion() });
+    const start = decideStart({ page: 'home', lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() });
     exec(() => boot(start === 'power-cold' ? 'cold' : 'warm'));
   }
 

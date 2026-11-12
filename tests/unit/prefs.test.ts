@@ -23,10 +23,12 @@ describe('prefs senza storage (Review Focus 2)', () => {
     expect(prefs.getPhosphor()).toBe('verde');
     expect(prefs.isSoundOff()).toBe(false);
     expect(prefs.getLastBoot()).toBeNull();
+    expect(prefs.getLastPowerOn()).toBeNull();
     expect(() => prefs.setPhosphor('ambra')).not.toThrow();
     expect(() => prefs.setSoundOff(true)).not.toThrow();
     expect(() => prefs.setSoundOff(false)).not.toThrow();
     expect(() => prefs.setLastBoot('2026-11-11')).not.toThrow();
+    expect(() => prefs.setLastPowerOn('2026-11-11')).not.toThrow();
   });
 
   it('anche l\'accesso a localStorage che lancia', () => {
@@ -52,6 +54,9 @@ describe('prefs con storage', () => {
     expect(prefs.isSoundOff()).toBe(true);
     prefs.setLastBoot('2026-11-11');
     expect(prefs.getLastBoot()).toBe('2026-11-11');
+    prefs.setLastPowerOn('2026-11-12');
+    expect(s.data.get('fosforo.ultimaAccensione')).toBe('2026-11-12');
+    expect(prefs.getLastPowerOn()).toBe('2026-11-12');
   });
 
   it('setSoundOff(false) toglie la chiave', () => {
@@ -68,9 +73,11 @@ describe('prefs con storage', () => {
     s.data.set('fosforo.fosfori', 'viola');
     s.data.set('fosforo.suono', 'boh');
     s.data.set('fosforo.ultimoBoot', 'ieri');
+    s.data.set('fosforo.ultimaAccensione', 'ieri');
     vi.stubGlobal('localStorage', s);
     expect(prefs.getPhosphor()).toBe('verde');
     expect(prefs.isSoundOff()).toBe(false);
     expect(prefs.getLastBoot()).toBeNull();
+    expect(prefs.getLastPowerOn()).toBeNull();
   });
 });

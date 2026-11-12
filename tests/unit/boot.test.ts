@@ -4,12 +4,16 @@ import { decideStart, runBoot, welcomeSpans } from '../../src/client/boot';
 describe('decideStart', () => {
   const today = '2026-11-11';
   it.each([
-    ['home, giorno nuovo', { page: 'home', lastBoot: '2026-11-10', today, reducedMotion: false }, 'power-cold'],
-    ['home, primo boot', { page: 'home', lastBoot: null, today, reducedMotion: false }, 'power-cold'],
-    ['home, stesso giorno', { page: 'home', lastBoot: today, today, reducedMotion: false }, 'power-warm'],
-    ['home, giorno nuovo, movimento ridotto', { page: 'home', lastBoot: null, today, reducedMotion: true }, 'power-warm'],
-    ['elemento', { page: 'item', lastBoot: null, today, reducedMotion: false }, 'direct'],
-    ['404', { page: '404', lastBoot: null, today, reducedMotion: false }, 'direct'],
+    ['home, giorno nuovo', { page: 'home', lastBoot: '2026-11-10', lastPowerOn: null, today, reducedMotion: false }, 'power-cold'],
+    ['home, primo boot', { page: 'home', lastBoot: null, lastPowerOn: null, today, reducedMotion: false }, 'power-cold'],
+    ['home, stesso giorno', { page: 'home', lastBoot: today, lastPowerOn: null, today, reducedMotion: false }, 'power-warm'],
+    ['home, giorno nuovo, movimento ridotto', { page: 'home', lastBoot: null, lastPowerOn: null, today, reducedMotion: true }, 'power-warm'],
+    ['elemento, mai acceso', { page: 'item', lastBoot: null, lastPowerOn: null, today, reducedMotion: false }, 'power-link'],
+    ['elemento, acceso ieri', { page: 'item', lastBoot: today, lastPowerOn: '2026-11-10', today, reducedMotion: false }, 'power-link'],
+    ['elemento, acceso oggi', { page: 'item', lastBoot: null, lastPowerOn: today, today, reducedMotion: false }, 'direct'],
+    ['elemento, movimento ridotto', { page: 'item', lastBoot: null, lastPowerOn: null, today, reducedMotion: true }, 'power-link'],
+    ['home, acceso oggi da un link', { page: 'home', lastBoot: '2026-11-10', lastPowerOn: today, today, reducedMotion: false }, 'power-cold'],
+    ['404', { page: '404', lastBoot: null, lastPowerOn: null, today, reducedMotion: false }, 'direct'],
   ] as const)('%s', (_name, input, expected) => {
     expect(decideStart(input)).toBe(expected);
   });

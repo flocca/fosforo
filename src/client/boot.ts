@@ -2,17 +2,20 @@
 import type { Span } from '../lib/blocks';
 import type { SiteConfig } from '../lib/schema';
 
-export type StartKind = 'power-cold' | 'power-warm' | 'direct';
+export type StartKind = 'power-cold' | 'power-warm' | 'power-link' | 'direct';
 
-// Il boot completo una volta al giorno (data locale del visitatore); con il movimento
-// ridotto sempre l'avvio rapido. Le pagine degli elementi si aprono già accese.
+// Home: il boot completo una volta al giorno (data locale del visitatore); con il movimento
+// ridotto sempre l'avvio rapido. Pagine degli elementi: monitor spento la prima volta nel giorno
+// in cui il visitatore lo accende (anche con il movimento ridotto), poi già acceso. 404 sempre acceso.
 export function decideStart(input: {
   page: 'home' | 'item' | '404';
   lastBoot: string | null;
+  lastPowerOn: string | null;
   today: string;
   reducedMotion: boolean;
 }): StartKind {
-  if (input.page !== 'home') return 'direct';
+  if (input.page === '404') return 'direct';
+  if (input.page === 'item') return input.lastPowerOn === input.today ? 'direct' : 'power-link';
   return input.lastBoot !== input.today && !input.reducedMotion ? 'power-cold' : 'power-warm';
 }
 
