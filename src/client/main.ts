@@ -7,7 +7,7 @@ import type { SiteConfig } from '../lib/schema';
 import { createAudio } from './audio';
 import { bezelKey } from './bezel-key';
 import { decideStart, runBoot, welcomeSpans } from './boot';
-import { WARMUP_MS, warmUp } from './power-fx';
+import { collapse, COLLAPSE_MS, HALT_PAUSE_MS, WARMUP_MS, warmUp } from './power-fx';
 import { complete } from './complete';
 import { createHistory } from './history';
 import { createRouter, currentPath } from './router';
@@ -32,6 +32,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 // la pausa più lunga prima del risultato di un comando che usa il disco (cat, ls)
 const DISK_WAIT_MAX_S = 0.5;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+// reboot con il movimento ridotto: niente collasso, schermo spento per questo tempo
 const REBOOT_OFF_MS = 400;
 
 const currentPhosphor = (): Phosphor => {
@@ -152,7 +153,20 @@ async function main() {
 
   const router = createRouter({
     title: titleFor,
-    onPop: (path) => exec(() => router.replay(() => showPath(path))),
+    onPop: (path) => {
+      // durante il collasso si ignora: lo spegnimento torna comunque a /
+      if (power === 'collapsing') return;
+      if (power === 'off') {
+        // a monitor spento / resta spento; un elemento si riaccende come un link profondo
+        if (path === '') return;
+        audio.spinUp();
+        setScreenOn(true);
+        setPower('on');
+        screen.showPrompt(true);
+        if (isDesktop()) screen.focus();
+      }
+      exec(() => router.replay(() => showPath(path)));
+    },
   });
 
   const promptLabel = (cwd: string) => `${site.user}@${site.host} ${cwd ? `~/${cwd}` : '~'} $ `;
@@ -161,9 +175,12 @@ async function main() {
   const powerButton = document.querySelector<HTMLButtonElement>('.power-button');
 
   // ── accensione ────────────────────────────────────────────────────────────
-  // off: home in attesa dell'interruttore; booting: righe della ROM; on: terminale pronto.
-  let power: 'off' | 'booting' | 'on' = 'on';
-  let booting: { skip(): void } | null = null;
+  // off: monitor spento, in attesa dell'interruttore; warming: alone fino alla prima riga;
+  // booting: righe della ROM; on: terminale pronto; collapsing: collasso dello spegnimento
+  // (o del reboot). Durante alone e collasso pulsante, clic sullo schermo e INVIO non fanno niente.
+  type Power = 'off' | 'warming' | 'booting' | 'on' | 'collapsing';
+  let power: Power = 'on';
+  let booting: { skip(): void; cancel(): void } | null = null;
   let poweredAt = 0;
 
   // Comandi rapidi del telefono: visibili solo a schermo acceso e con il tocco.
@@ -172,22 +189,29 @@ async function main() {
     onCommand: (cmd) => exec(() => runEcho(cmd)),
     onWrite: () => screen.focus(),
     onTap: () => {
-      if (power !== 'booting') return false;
-      booting?.skip();
+      if (power === 'on') return false;
+      // durante il boot il tocco salta alla fine; con alone e collasso non fa niente
+      if (power === 'booting') booting?.skip();
       return true;
     },
   });
 
+  // Il collasso finisce qui: con is-collapsing la scritta "premi INVIO" resterebbe nascosta.
   const setScreenOn = (on: boolean) => {
+    screenEl.classList.remove('is-collapsing');
     screenEl.classList.toggle('is-off', !on);
     chips.show(on);
     led?.classList.toggle('is-on', on);
     html.classList.remove('power-pending');
   };
-  const setPowerButton = (enabled: boolean) => {
+  // Il pulsante segue lo stato: "Accendi" a monitor spento (e mentre si spegne), "Spegni" acceso.
+  const setPower = (next: Power) => {
+    power = next;
     if (!powerButton) return;
-    powerButton.disabled = !enabled;
-    powerButton.setAttribute('aria-label', enabled ? 'Accendi' : 'Acceso');
+    const name = next === 'off' || next === 'collapsing' ? 'Accendi' : 'Spegni';
+    powerButton.disabled = next === 'warming' || next === 'collapsing';
+    powerButton.setAttribute('aria-label', name);
+    powerButton.title = name;
   };
 
   const term: Terminal = {
@@ -223,24 +247,34 @@ async function main() {
       },
       setMuted: applySound,
     },
+    // Gira dentro la coda (è un comando): lo spegnimento si fa qui, senza rimettersi in coda.
     async shutdown() {
-      // provvisorio: lo spegnimento vero arriva con il compito 5
+      await sleep(HALT_PAUSE_MS);
+      // il pulsante premuto durante la pausa ha già avviato lo spegnimento, che segue in coda
+      if (beginPowerOff()) await finishPowerOff();
     },
-    // Schermo spento 400 ms, poi boot completo qualunque sia la data, dalla radice
-    // (con il movimento ridotto l'avvio rapido).
+    // Lo stesso collasso dello spegnimento, senza la scritta "premi INVIO", poi boot completo
+    // qualunque sia la data, dalla radice (con il movimento ridotto l'avvio rapido).
     async reboot() {
-      booting?.skip();
-      // a contesto già nato (qui non siamo dentro il gesto): l'interruttore scatta, il tubo si spegne e si riaccende
-      if (audio.started) audio.reboot(REBOOT_OFF_MS / 1000);
-      power = 'booting';
-      setPowerButton(false);
-      screen.clear();
+      const reduced = reducedMotion();
+      setPower('collapsing');
+      // a contesto già nato (qui non siamo dentro il gesto): l'interruttore scatta, il tubo si
+      // spegne e si riaccende quando il punto è sparito
+      if (audio.started) audio.reboot(reduced ? REBOOT_OFF_MS / 1000 : COLLAPSE_MS / 1000);
+      led?.classList.remove('is-on');
       screen.showPrompt(false);
-      setScreenOn(false);
-      await sleep(REBOOT_OFF_MS);
+      chips.show(false);
+      if (reduced) {
+        // niente collasso: schermo spento, con is-collapsing che nasconde la scritta
+        screenEl.classList.add('is-off', 'is-collapsing');
+        await sleep(REBOOT_OFF_MS);
+      } else {
+        await collapse(screenEl);
+      }
+      screen.clear();
       term.setCwd('');
       router.navigate('', 'push');
-      await boot(reducedMotion() ? 'warm' : 'cold');
+      await boot(reduced ? 'warm' : 'cold');
     },
     // il risultato di un comando aspetta la testina, ma non più di DISK_WAIT_MAX_S
     diskSeek: (n) => {
@@ -261,7 +295,9 @@ async function main() {
   };
 
   // Finché il comando lavora (disco, rete) si va solo a capo: il prompt torna con il risultato.
+  // I comandi rimasti in coda (chip, link, righe battute) non fanno niente se il monitor non è acceso.
   const runEcho = async (cmd: string) => {
+    if (power !== 'on') return;
     screen.echo(cmd);
     screen.setBusy(true);
     try {
@@ -309,9 +345,10 @@ async function main() {
   }
 
   // Righe della ROM, poi benvenuto e prompt. Gira dentro la coda dei comandi.
+  // L'alone dura fino alla prima riga; il giorno si salva solo a boot finito, così un boot
+  // interrotto dallo spegnimento si rifà completo alla prossima accensione.
   async function boot(kind: 'cold' | 'warm') {
-    power = 'booting';
-    prefs.setLastBoot(localToday());
+    setPower('warming');
     screen.clear();
     screen.showPrompt(false);
     setScreenOn(true);
@@ -321,31 +358,67 @@ async function main() {
       kind,
       rom: site.boot.rom,
       tokens: song ? { canzone: song.label, data: song.date } : {},
-      print: (text) => screen.printRom(text),
+      print: (text) => {
+        if (power === 'warming') setPower('booting');
+        screen.printRom(text);
+      },
       diskSeek: term.diskSeek,
       sleep,
       warmupMs: reducedMotion() ? 0 : WARMUP_MS,
     });
     booting = run;
-    await run.done;
+    const completed = await run.done;
     booting = null;
+    // interrotto dallo spegnimento: niente benvenuto né prompt
+    if (!completed) return;
+    prefs.setLastBoot(localToday());
     const touch = isCoarsePointer();
     const welcome = (touch && site.boot.welcomeTouch) || site.boot.welcome;
     screen.print([{ type: 'blank' }, { type: 'line', spans: welcomeSpans(welcome) }, { type: 'blank' }]);
-    power = 'on';
+    setPower('on');
     screen.showPrompt(true);
     if (isDesktop()) screen.focus();
   }
 
-  // Primo clic sull'interruttore (o INVIO, o clic sullo schermo spento): una sola accensione.
+  // Clic sull'interruttore (o INVIO, o clic sullo schermo spento): una sola accensione.
   function powerOn() {
     if (power !== 'off') return;
-    power = 'booting';
+    setPower('warming');
     poweredAt = performance.now();
-    setPowerButton(false);
     audio.powerOn();
     const start = decideStart({ page: 'home', lastBoot: prefs.getLastBoot(), today: localToday(), reducedMotion: reducedMotion() });
     exec(() => boot(start === 'power-cold' ? 'cold' : 'warm'));
+  }
+
+  // Spegnimento, prima parte, subito allo scatto: il boot in corso si ferma, la spia si spegne,
+  // il campo si svuota e perde il fuoco (sul telefono si chiude la tastiera). Da qui pulsante,
+  // clic, INVIO e comandi in coda non fanno niente. Dice false se il monitor non era acceso.
+  function beginPowerOff(): boolean {
+    if (power !== 'on' && power !== 'booting') return false;
+    booting?.cancel();
+    setPower('collapsing');
+    led?.classList.remove('is-on');
+    audio.powerOff();
+    screen.input.value = '';
+    screen.input.blur();
+    screen.showPrompt(false);
+    chips.show(false);
+    return true;
+  }
+
+  // Seconda parte, nella coda (dopo il comando che stava lavorando): collasso, schermo vuoto,
+  // radice e indirizzo / (sostituito se è già /), poi lo stato spento con la scritta.
+  async function finishPowerOff() {
+    await collapse(screenEl);
+    screen.clear();
+    term.setCwd('');
+    router.navigate('', 'push');
+    setScreenOn(false);
+    setPower('off');
+  }
+
+  function powerOff() {
+    if (beginPowerOff()) exec(finishPowerOff);
   }
 
   // Durante il boot un tasto o un clic sullo schermo salta alla fine
@@ -357,15 +430,17 @@ async function main() {
   // Link profondo: il primo tocco o tasto fa ripartire ventola e ronzio. I gesti dopo
   // sbloccano il contesto se il browser l'ha lasciato sospeso (un tocco su iOS e Android
   // non basta: serve il rilascio). La home aspetta l'interruttore.
-  const unlockAudio = () => {
+  // Se il primo gesto è il pulsante (che spegne) l'ambiente non parte: lo spegnimento è muto.
+  // A monitor spento l'audio nasce con l'interruttore, non qui.
+  const unlockAudio = (e: Event) => {
     if (audio.started) audio.resume();
-    else if (page !== 'home') audio.spinUp();
+    else if (page !== 'home' && power === 'on' && !(e.target as Element | null)?.closest?.('.power-button')) audio.spinUp();
   };
   for (const type of ['pointerdown', 'keydown', 'pointerup', 'touchend']) {
     document.addEventListener(type, unlockAudio, { capture: true, passive: true });
   }
 
-  powerButton?.addEventListener('click', powerOn);
+  powerButton?.addEventListener('click', () => (power === 'off' ? powerOn() : powerOff()));
   screenEl.addEventListener('click', () => (power === 'off' ? powerOn() : skipBoot()));
   document.addEventListener('keydown', (e) => {
     if (power === 'off') {
@@ -385,8 +460,7 @@ async function main() {
     screen.clear();
     screen.showPrompt(false);
     setScreenOn(false);
-    power = 'off';
-    setPowerButton(true);
+    setPower('off');
     router.navigate('', 'push');
   }
 
@@ -428,7 +502,7 @@ async function main() {
   const start = () => {
     if (page === 'home') return router.replay(startHome);
     setScreenOn(true);
-    setPowerButton(false);
+    setPower('on');
     if (page === '404') return startNotFound();
     return router.replay(startItem);
   };

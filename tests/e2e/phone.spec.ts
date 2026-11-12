@@ -54,7 +54,8 @@ test('un tocco sul chip durante il boot salta il boot e non esegue il comando', 
   await page.goto('/');
   await page.getByRole('button', { name: 'Accendi' }).tap();
   await expect(chips(page)).toBeVisible();
-  await page.waitForTimeout(400);
+  // durante l'alone il tocco non fa niente; con la prima riga della ROM salta alla fine
+  await expect(output(page).locator('.term-line', { hasText: 'FOSFORO VT-78' })).toHaveCount(1);
   await chip(page, 'help').tap();
   await expect(output(page)).toContainText('Benvenuto. Tocca un nome oppure scrivi help.');
   await expect(output(page)).not.toContainText('$ help');

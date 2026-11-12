@@ -1,19 +1,12 @@
 // Accensione: interruttore, boot giornaliero, avvio rapido, preferenze e selettore dei fosfori.
 import { expect, test, type Page } from '@playwright/test';
+import { FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
-const FIRST_ROM = 'FOSFORO VT-78  ROM v1.3';
-const SECOND_ROM = 'MEMORY TEST ....... 65536 BYTES OK';
-const WELCOME = 'Benvenuto. Scrivi help oppure clicca un nome.';
-const prompt = (page: Page) => page.getByRole('textbox', { name: 'Comando' });
-const powerButton = (page: Page) => page.getByRole('button', { name: 'Accendi' });
-const output = (page: Page) => page.locator('#screen .term-out');
-const romLines = (page: Page, text: string) => output(page).locator('.term-line', { hasText: text });
-
 const welcomeLines = (page: Page) => output(page).locator('.term-line', { hasText: WELCOME });
 
-// Conta i boot: ognuno scrive fosforo.ultimoBoot all'inizio.
+// Conta i boot: ognuno scrive fosforo.ultimoBoot quando finisce.
 async function countBoots(page: Page) {
   await page.addInitScript(() => {
     const w = window as unknown as { bootWrites: number };
@@ -26,12 +19,6 @@ async function countBoots(page: Page) {
   });
 }
 const bootWrites = (page: Page) => page.evaluate(() => (window as unknown as { bootWrites: number }).bootWrites);
-
-// Il giorno del visitatore lo decide l'orologio della pagina.
-async function today(page: Page, lastBoot?: string) {
-  await page.clock.install({ time: new Date('2026-11-11T10:00:00') });
-  if (lastBoot) await page.addInitScript((d) => localStorage.setItem('fosforo.ultimoBoot', d), lastBoot);
-}
 
 test('la home parte spenta, con l\'interruttore e senza prompt', async ({ page }) => {
   await today(page);
@@ -78,7 +65,7 @@ test('Review Focus 4: doppio clic sullo schermo spento, un solo boot e niente sa
   // orologio fermo: il tempo avanza solo con runFor
   await page.clock.pauseAt(new Date('2026-11-11T10:00:10'));
   await page.locator('.screen').dblclick();
-  // il secondo clic non salta il boot: dopo lampo e attesa c'è solo la prima riga
+  // il secondo clic non salta il boot: dopo l'alone c'è solo la prima riga
   await page.clock.runFor(1450);
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await expect(romLines(page, SECOND_ROM)).toHaveCount(0);
@@ -124,23 +111,37 @@ test('movimento ridotto: avvio rapido anche in un giorno nuovo', async ({ page }
   await expect(page.locator('.screen')).not.toHaveClass(/is-warming/);
 });
 
-test('link profondo: nessun interruttore, prompt subito', async ({ page }) => {
+test('link profondo: monitor già acceso, prompt subito', async ({ page }) => {
   await page.goto('/chi-sono');
   await expect(prompt(page)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accendi' })).toHaveCount(0);
+  await expect(powerButton(page, 'Spegni')).toBeEnabled();
+  await expect(powerButton(page, 'Spegni')).toHaveAttribute('title', 'Spegni');
   await expect(page.locator('.screen')).not.toHaveClass(/is-off/);
   await expect(page.locator('.power-led')).toHaveClass(/is-on/);
 });
 
-test('reboot: schermo spento, boot completo dalla radice anche nello stesso giorno', async ({ page }) => {
+test('reboot: collasso senza scritta, boot completo dalla radice anche nello stesso giorno', async ({ page }) => {
   await today(page, '2026-11-11');
   await page.goto('/chi-sono');
   await expect(prompt(page)).toBeFocused();
+  // la scritta "premi INVIO" non deve comparire mai durante il reboot
+  await page.evaluate(() => {
+    const w = window as unknown as { hintSeen: boolean };
+    w.hintSeen = false;
+    const hint = document.querySelector('.screen-off')!;
+    const check = () => {
+      if (getComputedStyle(hint).display !== 'none') w.hintSeen = true;
+      requestAnimationFrame(check);
+    };
+    check();
+  });
   await page.keyboard.type('reboot');
   await page.keyboard.press('Enter');
-  await expect(page.locator('.screen')).toHaveClass(/is-off/);
+  await expect(page.locator('.screen')).toHaveClass(/is-collapsing/);
   await expect(page.locator('.power-led')).not.toHaveClass(/is-on/);
-  await expect(romLines(page, SECOND_ROM)).toHaveCount(1, { timeout: 4000 });
+  await expect(romLines(page, SECOND_ROM)).toHaveCount(1, { timeout: 5000 });
+  expect(await page.evaluate(() => (window as unknown as { hintSeen: boolean }).hintSeen)).toBe(false);
   await expect(page).toHaveURL(/\/$/);
   await page.keyboard.press('x');
   await expect(output(page)).toContainText(WELCOME);
@@ -312,7 +313,8 @@ test.describe('telefono a 320 px', () => {
     await page.getByRole('button', { name: 'Cambia colore dei fosfori' }).tap();
     await expect(page.locator('html')).toHaveAttribute('data-fosfori', 'ambra');
     await page.getByRole('button', { name: 'Accendi' }).tap();
-    await page.waitForTimeout(400);
+    // durante l'alone il tocco non fa niente; con la prima riga salta alla fine
+    await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
     await page.locator('.screen').tap();
     await expect(page.locator('#screen .term-out')).toContainText('Benvenuto. Tocca un nome oppure scrivi help.');
   });
