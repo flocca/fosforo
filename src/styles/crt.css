@@ -3,9 +3,12 @@
  * Contratto usato dai task successivi (client del terminale, accensione, chip):
  * - html[data-fosfori="verde|ambra|bianco"] imposta --ph, --ph-dim, --ph-glow
  * - .monitor, .screen (sovrapposizioni: scanline, vignettatura, sfarfallio)
- * - .screen.is-off (spento), .screen.is-powering (lampo di accensione); prima del client
+ * - .screen.is-off (spento), .screen.is-collapsing (collasso dello spegnimento),
+ *   .screen.is-warming (alone del tubo che si scalda); prima del client
  *   html.power-pending (messo dallo script in testa sulla home) vale come .screen.is-off
  * - .term-prompt[hidden] (prompt nascosto durante il boot), .term-prompt.is-busy (comando al lavoro: senza etichetta)
+ * - .screen-beam (riga e punto del collasso), .screen-glow (alone dell'accensione): decorativi,
+ *   aria-hidden, invisibili fuori dalle loro animazioni
  * - .term, .dim, .bold, .inverse, .ph-img
  * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
  * - .power-button, .phosphor-button, .sound-button (tasto fisico del suono, aria-label
@@ -444,21 +447,221 @@ body {
   display: flex;
 }
 
-.screen.is-powering > main {
-  animation: crt-power-on 0.5s ease-out;
+/* Collasso (spegnimento) e alone (accensione). Tempi dal mockup approvato, da t = 0 allo
+ * scatto dell'interruttore; le curve del mockup valgono sull'intera animazione, qui sono
+ * divise nei tratti fra i fotogrammi (stessa curva, spezzata nel punto del fotogramma). */
+
+.screen.is-collapsing .screen-off {
+  display: none;
 }
 
-@keyframes crt-power-on {
-  0% {
-    transform: scaleY(0.005) scaleX(0.6);
-    filter: brightness(4);
+.screen-beam,
+.screen-glow {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  color: var(--ph);
+}
+
+.screen-beam {
+  inset: 0;
+}
+
+/* la riga */
+.screen-beam::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, currentColor 75%, #fff) 15%,
+    color-mix(in srgb, currentColor 15%, #fff) 50%,
+    color-mix(in srgb, currentColor 75%, #fff) 85%,
+    transparent
+  );
+  box-shadow: 0 0 14px 4px color-mix(in srgb, currentColor 50%, transparent);
+}
+
+/* il punto */
+.screen-beam::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, currentColor 15%, #fff) 0%,
+    color-mix(in srgb, currentColor 60%, #fff) 35%,
+    color-mix(in srgb, currentColor 35%, transparent) 60%,
+    transparent 75%
+  );
+  box-shadow: 0 0 18px 6px color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* alone ellittico più grande dello schermo: il gradiente arriva al trasparente prima del
+ * bordo, così non si vedono mai gli spigoli di un rettangolo */
+.screen-glow {
+  left: -25%;
+  top: -25%;
+  width: 150%;
+  height: 150%;
+  border-radius: 50%;
+  transform: scale(0.05);
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, currentColor 38%, transparent) 0%,
+    color-mix(in srgb, currentColor 18%, transparent) 35%,
+    color-mix(in srgb, currentColor 6%, transparent) 65%,
+    transparent 100%
+  );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* durante gli effetti il vetro acceso lo porta main, sopra il vetro spento */
+  .screen.is-collapsing,
+  .screen.is-warming {
+    background: radial-gradient(ellipse at 45% 40%, #1a1d1b 0%, #0e100f 60%, #070807 100%);
   }
-  60% {
-    transform: scaleY(1) scaleX(1);
-    filter: brightness(1.8);
+
+  .screen.is-collapsing > main,
+  .screen.is-warming > main {
+    border-radius: inherit;
+    background: radial-gradient(ellipse at center, var(--glass-0) 0%, var(--glass-1) 70%, var(--glass-2) 100%);
+    box-shadow:
+      inset 0 0 60px #000,
+      inset 0 0 12px #000;
+  }
+
+  /* 30-190 ms: l'immagine si illumina e si schiaccia in una riga; da 190 ms sparisce */
+  .screen.is-collapsing > main {
+    animation:
+      crt-collapse 160ms 30ms forwards,
+      crt-gone 1ms 190ms forwards;
+  }
+
+  .screen.is-collapsing .screen-beam {
+    opacity: 1;
+  }
+
+  /* 190-390 ms: la riga si stringe verso il centro */
+  .screen.is-collapsing .screen-beam::before {
+    animation: crt-line 200ms cubic-bezier(0.55, 0, 0.85, 0.35) 190ms;
+  }
+
+  /* 390-1690 ms: il punto si accende più grande, poi svanisce rimpicciolendo */
+  .screen.is-collapsing .screen-beam::after {
+    animation: crt-dot 1300ms 390ms;
+  }
+
+  /* 120-1200 ms: l'alone cresce dal centro, veloce all'inizio e lento alla fine */
+  .screen.is-warming .screen-glow {
+    animation:
+      crt-glow-grow 1080ms cubic-bezier(0.16, 1, 0.3, 1) 120ms both,
+      crt-glow-fade 1080ms linear 120ms both;
+  }
+
+  /* da 300 ms lo schermo acceso e vuoto sfuma dentro */
+  .screen.is-warming > main {
+    animation: crt-lit 864ms ease-in 300ms both;
+  }
+}
+
+/* cubic-bezier(.55, 0, .85, .35) sull'intera animazione, spezzata al 15 % */
+@keyframes crt-collapse {
+  0% {
+    transform: scale(1, 1);
+    filter: brightness(1);
+    animation-timing-function: cubic-bezier(0.399, 0, 0.729, 0.34);
+  }
+  52.58% {
+    transform: scale(1, 1);
+    filter: brightness(2.2);
+    animation-timing-function: cubic-bezier(0.488, 0.189, 0.804, 0.527);
   }
   100% {
-    filter: none;
+    transform: scale(1, 0.004);
+    filter: brightness(4);
+  }
+}
+
+@keyframes crt-gone {
+  from,
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes crt-line {
+  from {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(0.01);
+  }
+}
+
+/* ease-out sull'intera animazione, spezzata al 25 % */
+@keyframes crt-dot {
+  0% {
+    opacity: 1;
+    transform: scale(1.4);
+    animation-timing-function: cubic-bezier(0, 0, 0.387, 0.426);
+  }
+  15.96% {
+    opacity: 0.85;
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.24, 0.395, 0.663, 1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+@keyframes crt-glow-grow {
+  from {
+    transform: scale(0.05);
+  }
+  to {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes crt-glow-fade {
+  0% {
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  65% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes crt-lit {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -708,12 +911,11 @@ body {
   }
 }
 
-/* ── movimento ridotto: niente sfarfallio, niente lampo, niente banda ───── */
+/* ── movimento ridotto: niente sfarfallio, niente banda (collasso e alone solo con movimento) */
 
 @media (prefers-reduced-motion: reduce) {
   .screen::after,
-  .screen-glass::after,
-  .screen.is-powering > main {
+  .screen-glass::after {
     animation: none;
   }
 

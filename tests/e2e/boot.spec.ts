@@ -121,7 +121,7 @@ test('movimento ridotto: avvio rapido anche in un giorno nuovo', async ({ page }
   await powerButton(page).click();
   await expect(output(page)).toContainText(WELCOME, { timeout: 1500 });
   await expect(romLines(page, SECOND_ROM)).toHaveCount(0);
-  await expect(page.locator('.screen')).not.toHaveClass(/is-powering/);
+  await expect(page.locator('.screen')).not.toHaveClass(/is-warming/);
 });
 
 test('link profondo: nessun interruttore, prompt subito', async ({ page }) => {

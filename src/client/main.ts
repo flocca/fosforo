@@ -7,7 +7,7 @@ import type { SiteConfig } from '../lib/schema';
 import { createAudio } from './audio';
 import { bezelKey } from './bezel-key';
 import { decideStart, runBoot, welcomeSpans } from './boot';
-import { WARMUP_MS } from './power-fx';
+import { WARMUP_MS, warmUp } from './power-fx';
 import { complete } from './complete';
 import { createHistory } from './history';
 import { createRouter, currentPath } from './router';
@@ -33,7 +33,6 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const DISK_WAIT_MAX_S = 0.5;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const REBOOT_OFF_MS = 400;
-const FLASH_MS = 500;
 
 const currentPhosphor = (): Phosphor => {
   const v = document.documentElement.dataset.fosfori as Phosphor;
@@ -316,12 +315,7 @@ async function main() {
     screen.clear();
     screen.showPrompt(false);
     setScreenOn(true);
-    if (!reducedMotion()) {
-      screenEl.classList.remove('is-powering');
-      void screenEl.offsetWidth; // riparte l'animazione anche al reboot
-      screenEl.classList.add('is-powering');
-      setTimeout(() => screenEl.classList.remove('is-powering'), FLASH_MS);
-    }
+    warmUp(screenEl);
     const song = index.latestSong;
     const run = runBoot({
       kind,

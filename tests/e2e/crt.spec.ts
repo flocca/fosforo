@@ -105,16 +105,78 @@ test.describe('senza JavaScript', () => {
 test.describe('movimento ridotto', () => {
   test.use({ reducedMotion: 'reduce' });
 
-  test('niente sfarfallio e niente lampo di accensione', async ({ page }) => {
+  test('niente sfarfallio, niente collasso e niente alone', async ({ page }) => {
     await page.goto('/chi-sono');
     const names = await page.evaluate(() => {
       const screen = document.querySelector('.screen')!;
-      screen.classList.add('is-powering');
+      screen.classList.add('is-collapsing', 'is-warming');
+      const beam = screen.querySelector('.screen-beam')!;
       return [
         getComputedStyle(screen, '::after').animationName,
         getComputedStyle(screen.querySelector('main')!).animationName,
+        getComputedStyle(beam, '::before').animationName,
+        getComputedStyle(beam, '::after').animationName,
+        getComputedStyle(screen.querySelector('.screen-glow')!).animationName,
       ];
     });
-    expect(names).toEqual(['none', 'none']);
+    expect(names).toEqual(['none', 'none', 'none', 'none', 'none']);
   });
+});
+
+// Collasso e alone: le classi si mettono a mano, senza passare dall'interruttore.
+// Riga e colore si leggono nello stesso passo: il client ridisegna le righe all'avvio.
+const phosphorOf = async (page: import('@playwright/test').Page) => {
+  await expect(page.getByRole('textbox', { name: 'Comando' })).toBeVisible();
+  return page.evaluate(() => getComputedStyle(document.querySelector('.term-line')!).color);
+};
+
+test('collasso: riga e punto del colore dei fosfori', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('fosforo.fosfori', 'ambra'));
+  await page.goto('/chi-sono');
+  const phosphor = await phosphorOf(page);
+  expect(phosphor).toBe('rgb(255, 176, 0)');
+  await page.evaluate(() => document.querySelector('.screen')!.classList.add('is-collapsing'));
+  const beam = page.locator('.screen-beam');
+  expect(await beam.evaluate((el) => getComputedStyle(el).color)).toBe(phosphor);
+  // la riga si accende a 190 ms, il punto a 390 ms
+  await expect
+    .poll(() => beam.evaluate((el) => Number(getComputedStyle(el, '::before').opacity)), { timeout: 1000, intervals: [20] })
+    .toBeGreaterThan(0);
+  await expect
+    .poll(() => beam.evaluate((el) => Number(getComputedStyle(el, '::after').opacity)), { timeout: 1000, intervals: [20] })
+    .toBeGreaterThan(0);
+  expect(await beam.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+});
+
+test('alone: ellittico e del colore dei fosfori', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('fosforo.fosfori', 'bianco'));
+  await page.goto('/chi-sono');
+  const phosphor = await phosphorOf(page);
+  expect(phosphor).toBe('rgb(232, 240, 255)');
+  await page.evaluate(() => document.querySelector('.screen')!.classList.add('is-warming'));
+  const glow = page.locator('.screen-glow');
+  const style = await glow.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { radius: cs.borderTopLeftRadius, color: cs.color };
+  });
+  expect(style).toEqual({ radius: '50%', color: phosphor });
+  await expect
+    .poll(() => glow.evaluate((el) => Number(getComputedStyle(el).opacity)), { timeout: 1000, intervals: [20] })
+    .toBeGreaterThan(0);
+});
+
+test('fuori dalle animazioni riga, punto e alone non si vedono', async ({ page }) => {
+  for (const url of ['/', '/chi-sono']) {
+    await page.goto(url);
+    const opacities = await page.evaluate(() => {
+      const beam = document.querySelector('.screen-beam')!;
+      return [
+        getComputedStyle(beam).opacity,
+        getComputedStyle(beam, '::before').opacity,
+        getComputedStyle(beam, '::after').opacity,
+        getComputedStyle(document.querySelector('.screen-glow')!).opacity,
+      ];
+    });
+    expect(opacities, url).toEqual(['0', '0', '0', '0']);
+  }
 });

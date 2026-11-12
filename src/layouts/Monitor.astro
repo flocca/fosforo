@@ -69,6 +69,8 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
       <div class="screen-well">
         <div class="screen">
           <main id="screen"><slot /></main>
+          <div class="screen-beam" aria-hidden="true"></div>
+          <div class="screen-glow" aria-hidden="true"></div>
           <div class="chips" hidden></div>
           <div class="screen-off" aria-hidden="true"></div>
           <div class="screen-glass" aria-hidden="true"></div>
