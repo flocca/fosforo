@@ -257,9 +257,15 @@ async function main() {
     return queue;
   };
 
+  // Finché il comando lavora (disco, rete) si va solo a capo: il prompt torna con il risultato.
   const runEcho = async (cmd: string) => {
     screen.echo(cmd);
-    await shell.run(cmd);
+    screen.setBusy(true);
+    try {
+      await shell.run(cmd);
+    } finally {
+      screen.setBusy(false);
+    }
   };
 
   // L'indice può essere vecchio (cache del browser): un percorso che manca, o un alias che

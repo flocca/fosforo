@@ -17,6 +17,9 @@ export type Screen = {
   clear(): void;
   setPrompt(label: string): void;
   showPrompt(show: boolean): void; // nascosto durante il boot
+  // un comando sta lavorando: la riga del prompt resta (con il campo a fuoco) ma senza
+  // l'etichetta, come un terminale che è solo andato a capo
+  setBusy(busy: boolean): void;
   focus(): void;
   onCommand(cb: (cmd: string) => void): void;
 };
@@ -180,6 +183,9 @@ export function createScreen(pre: HTMLPreElement, { keep = false } = {}): Screen
     },
     showPrompt(show) {
       promptLine.hidden = !show;
+    },
+    setBusy(busy) {
+      promptLine.classList.toggle('is-busy', busy);
     },
     focus() {
       input.focus({ preventScroll: true });

@@ -5,7 +5,7 @@
  * - .monitor, .screen (sovrapposizioni: scanline, vignettatura, sfarfallio)
  * - .screen.is-off (spento), .screen.is-powering (lampo di accensione); prima del client
  *   html.power-pending (messo dallo script in testa sulla home) vale come .screen.is-off
- * - .term-prompt[hidden] (prompt nascosto durante il boot)
+ * - .term-prompt[hidden] (prompt nascosto durante il boot), .term-prompt.is-busy (comando al lavoro: senza etichetta)
  * - .term, .dim, .bold, .inverse, .ph-img
  * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
  * - .power-button, .phosphor-button, .sound-button (tasto fisico del suono, aria-label
@@ -302,6 +302,11 @@ body {
 
 .term-prompt > .dim {
   flex: none;
+}
+
+/* un comando sta lavorando: solo l'a capo, senza etichetta */
+.term-prompt.is-busy > .dim {
+  display: none;
 }
 
 .term-prompt input {

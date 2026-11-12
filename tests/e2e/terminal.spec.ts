@@ -169,3 +169,24 @@ test('axe: nessuna violazione grave in /chi-sono', async ({ page }) => {
   const bad = violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   expect(bad.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
 });
+
+test('mentre un comando lavora si va solo a capo: il prompt torna con il risultato', async ({ page }) => {
+  await ready(page, '/canzoni');
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  await page.route('**/_fs/chi-sono.json', async (route) => {
+    await held;
+    await route.continue();
+  });
+  const label = page.locator('#screen .term-prompt > .dim');
+  await expect(label).toBeVisible();
+  await page.keyboard.type('cat /chi-sono');
+  await page.keyboard.press('Enter');
+  await expect(output(page)).toContainText('$ cat /chi-sono');
+  await expect(label).toBeHidden();
+  // la riga resta, con il campo ancora a fuoco: si può scrivere il comando dopo
+  await expect(prompt(page)).toBeFocused();
+  release();
+  await expect(output(page)).toContainText('Sono una persona di esempio.');
+  await expect(label).toBeVisible();
+});
