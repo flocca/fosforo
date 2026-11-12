@@ -1,6 +1,6 @@
 // Spegnimento: pulsante, comando shutdown, collasso, ritorno a / e riaccensione.
 import { expect, test, type Page } from '@playwright/test';
-import { FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today } from './helpers';
+import { FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -165,4 +165,59 @@ test('Review Focus 5: dopo lo spegnimento il campo è vuoto e senza fuoco', asyn
   const input = page.locator('#screen .term-prompt input');
   await expect(input).toHaveValue('');
   await expect(input).not.toBeFocused();
+});
+
+test('movimento ridotto: il doppio clic che accende resta un\'accensione sola', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await powerButton(page).dblclick();
+  await expect(output(page)).toContainText(WELCOME);
+  await expect(screenEl(page)).not.toHaveClass(/is-off/);
+  await expect(powerButton(page, 'Spegni')).toBeEnabled();
+});
+
+test('movimento ridotto: il doppio clic che spegne resta uno spegnimento solo', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/chi-sono');
+  await expect(prompt(page)).toBeFocused();
+  await powerButton(page, 'Spegni').dblclick();
+  await page.waitForTimeout(1000);
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+  await expect(romLines(page, FIRST_ROM)).toHaveCount(0);
+});
+
+test('Indietro durante la pausa di SYSTEM HALTED: spento su /, niente stampato', async ({ page }) => {
+  await page.goto('/chi-sono');
+  await expect(prompt(page)).toBeFocused();
+  await prompt(page).fill('cd /canzoni');
+  await prompt(page).press('Enter');
+  await expect(page).toHaveURL(/\/canzoni$/);
+  await shutdown(page);
+  await expect(output(page)).toContainText('SYSTEM HALTED');
+  await page.goBack();
+  await expect(screenEl(page)).toHaveClass(/is-off/, { timeout: 3000 });
+  await page.waitForTimeout(500);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(output(page)).toHaveText('');
+  await expect(screenEl(page)).toHaveClass(/is-off/);
+});
+
+test('movimento ridotto: spegnere mentre cat aspetta la rete spegne subito lo schermo', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/canzoni');
+  await expect(prompt(page)).toBeFocused();
+  let release = () => {};
+  const held = new Promise<void>((r) => (release = r));
+  await page.route('**/_fs/chi-sono.json', async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.keyboard.type('cat /chi-sono');
+  await page.keyboard.press('Enter');
+  await expect(output(page)).toContainText('$ cat /chi-sono');
+  await powerButton(page, 'Spegni').click();
+  await expect(screenEl(page)).toHaveClass(/is-off/, { timeout: 300 });
+  release();
+  await expect(powerButton(page, 'Accendi')).toBeEnabled();
+  await expect(output(page)).toHaveText('');
 });

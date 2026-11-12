@@ -10,9 +10,13 @@ export const HALT_PAUSE_MS = 500;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Collasso dell'immagine in una riga, poi in un punto che svanisce. La classe resta: chi
-// chiama mette is-off e la toglie. Con movimento ridotto finisce subito.
+// chiama, a spegnimento finito, mette is-off e la toglie. Con movimento ridotto niente
+// collasso: is-off subito (con is-collapsing, che nasconde la scritta fino a quel momento).
 export function collapse(screen: HTMLElement): Promise<void> {
-  if (reducedMotion()) return Promise.resolve();
+  if (reducedMotion()) {
+    screen.classList.add('is-off', 'is-collapsing');
+    return Promise.resolve();
+  }
   screen.classList.add('is-collapsing');
   return new Promise((resolve) => setTimeout(resolve, COLLAPSE_MS));
 }

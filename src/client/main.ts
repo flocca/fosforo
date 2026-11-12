@@ -34,6 +34,9 @@ const DISK_WAIT_MAX_S = 0.5;
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 // reboot con il movimento ridotto: niente collasso, schermo spento per questo tempo
 const REBOOT_OFF_MS = 400;
+// pulsante, INVIO o clic sullo schermo entro questo tempo dall'ultimo scatto non fanno niente:
+// il doppio clic che accende (o spegne) resta uno scatto solo, anche col movimento ridotto
+const SWITCH_GUARD_MS = 400;
 
 const currentPhosphor = (): Phosphor => {
   const v = document.documentElement.dataset.fosfori as Phosphor;
@@ -165,7 +168,8 @@ async function main() {
         screen.showPrompt(true);
         if (isDesktop()) screen.focus();
       }
-      exec(() => router.replay(() => showPath(path)));
+      // spento mentre aspettava (Indietro durante la pausa di SYSTEM HALTED): niente, resta /
+      exec(() => (power === 'on' ? router.replay(() => showPath(path)) : Promise.resolve()));
     },
   });
 
@@ -181,7 +185,9 @@ async function main() {
   type Power = 'off' | 'warming' | 'booting' | 'on' | 'collapsing';
   let power: Power = 'on';
   let booting: { skip(): void; cancel(): void } | null = null;
-  let poweredAt = 0;
+  // ultimo scatto dell'interruttore, acceso o spento
+  let switchedAt = -Infinity;
+  const justSwitched = () => performance.now() - switchedAt < SWITCH_GUARD_MS;
 
   // Comandi rapidi del telefono: visibili solo a schermo acceso e con il tocco.
   // Durante il boot un tocco salta alla fine, come ogni tocco sullo schermo.
@@ -382,9 +388,9 @@ async function main() {
 
   // Clic sull'interruttore (o INVIO, o clic sullo schermo spento): una sola accensione.
   function powerOn() {
-    if (power !== 'off') return;
+    if (power !== 'off' || justSwitched()) return;
     setPower('warming');
-    poweredAt = performance.now();
+    switchedAt = performance.now();
     audio.powerOn();
     const start = decideStart({ page: 'home', lastBoot: prefs.getLastBoot(), today: localToday(), reducedMotion: reducedMotion() });
     exec(() => boot(start === 'power-cold' ? 'cold' : 'warm'));
@@ -399,6 +405,7 @@ async function main() {
     if (power !== 'on' && power !== 'booting') return false;
     booting?.cancel();
     setPower('collapsing');
+    switchedAt = performance.now();
     led?.classList.remove('is-on');
     audio.powerOff();
     collapsing = collapse(screenEl);
@@ -421,14 +428,16 @@ async function main() {
     setPower('off');
   }
 
+  // dal pulsante: subito dopo un'accensione non spegne
   function powerOff() {
+    if (justSwitched()) return;
     if (beginPowerOff()) exec(finishPowerOff);
   }
 
   // Durante il boot un tasto o un clic sullo schermo salta alla fine
   // (non il secondo clic di un doppio clic che ha acceso).
   function skipBoot() {
-    if (power === 'booting' && performance.now() - poweredAt > 250) booting?.skip();
+    if (power === 'booting' && performance.now() - switchedAt > 250) booting?.skip();
   }
 
   // Link profondo: il primo tocco o tasto fa ripartire ventola e ronzio. I gesti dopo
