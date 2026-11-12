@@ -9,6 +9,8 @@
  *   sulla pagina di un elemento) vale come .screen.is-off. Spento, la home nasconde main;
  *   la pagina di un elemento lo lascia nella pagina e nell'albero di accessibilità, solo
  *   ritagliato alla vista (stesso aspetto della home spenta)
+ * - html.sound-pending (script in testa: link già acceso, o suono spento dal visitatore)
+ *   spegne .sound-led dal primo disegno, finché il client non la toglie
  * - .term-prompt[hidden] (prompt nascosto durante il boot), .term-prompt.is-busy (comando al lavoro: senza etichetta)
  * - .screen-beam (riga e punto del collasso), .screen-glow (alone dell'accensione): decorativi,
  *   aria-hidden, invisibili fuori dalle loro animazioni
@@ -735,6 +737,15 @@ body {
 
 /* la home con JavaScript parte spenta: spia dell'interruttore spenta anche prima del client */
 :root.power-pending .power-led.is-on {
+  background: #2a0808;
+  box-shadow:
+    0 0 0 1px #1a1612,
+    0 1px 0 1px #6b624f66,
+    inset 0 1px 1px #000a;
+}
+
+/* prima del client, sul link già acceso o con il suono spento: spia del suono spenta */
+:root.sound-pending .sound-led.is-on {
   background: #2a0808;
   box-shadow:
     0 0 0 1px #1a1612,

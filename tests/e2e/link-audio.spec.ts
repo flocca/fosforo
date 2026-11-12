@@ -131,6 +131,52 @@ test('la 404 fa partire l\'audio al primo gesto', async ({ page }) => {
   expect(await audioContexts(page)).toBe(1);
 });
 
+// Il primo disegno lo decide lo script in testa: senza il client resta quello.
+const ledLit = (page: Page) => page.locator('.sound-led').evaluate((el) => getComputedStyle(el).backgroundImage.includes('gradient'));
+
+test.describe('prima del client', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/_astro/*.js', (r) => r.abort());
+  });
+
+  test('link già acceso: la spia del suono è spenta dal primo disegno', async ({ page }) => {
+    await page.goto(SONG);
+    expect(await ledLit(page)).toBe(false);
+  });
+
+  test('preferenza spenta: la spia del suono è spenta dal primo disegno, anche sulla home', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
+    await page.goto('/');
+    expect(await ledLit(page)).toBe(false);
+  });
+
+  test('home e 404 con il suono acceso: la spia è accesa', async ({ page }) => {
+    await page.goto('/');
+    expect(await ledLit(page)).toBe(true);
+    await page.goto('/non-esiste');
+    expect(await ledLit(page)).toBe(true);
+  });
+});
+
+test.describe('primo giorno', () => {
+  test.use({ poweredToday: false });
+
+  test('prima del client la spia del suono è accesa', async ({ page }) => {
+    await page.route('**/_astro/*.js', (r) => r.abort());
+    await page.goto(SONG);
+    expect(await ledLit(page)).toBe(true);
+  });
+});
+
+test('con il client la spia segue lo stato: il segno dello script in testa non resta', async ({ page }) => {
+  await page.goto(SONG);
+  await expect(prompt(page)).toBeFocused();
+  await expect(page.locator('html')).not.toHaveClass(/sound-pending/);
+  await soundButton(page).click();
+  await expectShownOn(page);
+  expect(await ledLit(page)).toBe(true);
+});
+
 test.describe('primo giorno con l\'indice in ritardo', () => {
   test.use({ poweredToday: false });
 

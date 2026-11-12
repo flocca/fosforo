@@ -51,10 +51,14 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
       // sulla home, sulla pagina di un elemento se oggi (data locale, come localToday() in
       // src/lib/dates.ts) il visitatore non ha ancora acceso il monitor (senza storage: spento).
       // Il client sostituisce power-pending con .screen.is-off; senza client resta il livello 0.
+      // Spia del suono spenta dal primo disegno (sound-pending, il client la toglie quando la
+      // gestisce lui): sul link già acceso, dove l'audio aspetta il tasto del suono, e con il
+      // suono spento dal visitatore.
       (function () {
         var d = document.documentElement;
         var page = d.dataset.page;
         var off = page === 'home';
+        var quiet = false;
         if (page === 'item') {
           var last = null;
           try {
@@ -65,7 +69,12 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
             return (n < 10 ? '0' : '') + n;
           };
           off = last !== now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
+          quiet = !off;
         }
+        try {
+          if (localStorage.getItem('fosforo.suono') === 'spento') quiet = true;
+        } catch (e) {}
+        if (quiet) d.classList.add('sound-pending');
         if (off) {
           d.classList.add('power-pending');
           // il modulo del client gira prima di `load`: se non è partito, lo schermo si riaccende

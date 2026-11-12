@@ -72,6 +72,8 @@ const soundShownMuted = () => soundWaits || audio.muted;
 // sulla 404); su un link già acceso, spenti finché l'audio aspetta il tasto.
 function showSound() {
   const muted = soundShownMuted();
+  // da qui la spia la decide il client, non più lo script in testa
+  document.documentElement.classList.remove('sound-pending');
   document.querySelector('.sound-led')?.classList.toggle('is-on', !muted);
   const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (button) {
