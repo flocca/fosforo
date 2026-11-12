@@ -1,7 +1,7 @@
 // Accensione: interruttore, boot giornaliero, avvio rapido, preferenze e selettore dei fosfori.
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
+import { audioContexts, countAudioContexts, FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -207,21 +207,6 @@ test('il selettore dei fosfori: verde, ambra, bianco, verde, e resta dopo il ric
   await expect(output(page)).toContainText('Fosfori: ambra.');
 });
 
-// Conta i contesti audio creati, senza dipendere dall'uscita audio vera.
-async function countAudioContexts(page: Page) {
-  await page.addInitScript(() => {
-    const w = window as unknown as { audioContexts: AudioContext[]; AudioContext: typeof AudioContext };
-    w.audioContexts = [];
-    const Real = w.AudioContext;
-    w.AudioContext = class extends Real {
-      constructor(opts?: AudioContextOptions) {
-        super(opts);
-        w.audioContexts.push(this);
-      }
-    };
-  });
-}
-const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
 const soundLed = (page: Page) => page.locator('.sound-led');
 const soundButton = (page: Page, on: boolean) => page.getByRole('button', { name: on ? 'Suono acceso' : 'Suono spento' });
 
@@ -278,21 +263,6 @@ test('il tasto del suono ha lo stesso effetto del comando, anche a monitor spent
   await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
-});
-
-test('link profondo: l\'audio parte al primo gesto, la spia mostra la preferenza', async ({ page }) => {
-  await countAudioContexts(page);
-  await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
-  await page.goto('/chi-sono');
-  await expect(prompt(page)).toBeFocused();
-  await expect(soundLed(page)).not.toHaveClass(/is-on/);
-  expect(await audioContexts(page)).toBe(0);
-  await page.keyboard.type('pwd');
-  // un solo contesto, anche dopo molti tasti
-  expect(await audioContexts(page)).toBe(1);
-  await page.keyboard.press('Enter');
-  await page.mouse.click(5, 5);
-  expect(await audioContexts(page)).toBe(1);
 });
 
 test.describe('telefono a 320 px', () => {
@@ -352,12 +322,20 @@ test('spia dell\'interruttore: accesa solo dopo l\'accensione, anche durante il 
 });
 
 test('spia del suono: segue il tasto', async ({ page }) => {
-  await page.goto('/chi-sono');
+  await page.goto('/');
   await expect(soundLed(page)).toHaveClass(/is-on/);
   await soundButton(page, true).click();
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
   await soundButton(page, false).click();
   await expect(soundLed(page)).toHaveClass(/is-on/);
+
+  // sul link già acceso la spia resta spenta finché il tasto non fa partire l'audio
+  await page.goto('/chi-sono');
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
+  await soundButton(page, false).click();
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+  await soundButton(page, true).click();
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
 });
 
 test('spia dei fosfori: cambia colore con il selettore', async ({ page }) => {

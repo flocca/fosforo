@@ -50,7 +50,8 @@ test.describe('telefono a 320 px: pannello', () => {
 
   test('i tre tasti sono visibili su una riga e il tasto del suono funziona', async ({ page }) => {
     await page.goto('/chi-sono');
-    const sound = page.getByRole('button', { name: 'Suono acceso' });
+    // link già acceso: l'audio non è partito, il tasto si mostra spento
+    const sound = page.getByRole('button', { name: 'Suono spento' });
     await expect(sound).toBeVisible();
     const boxes = [];
     for (const sel of ['.sound-button', '.phosphor-button', '.power-button']) {
@@ -75,7 +76,7 @@ test.describe('telefono a 320 px: pannello', () => {
       expect(Math.abs(led!.x + led!.width / 2 - (boxes[i].x + boxes[i].width / 2))).toBeLessThan(1.5);
     }
     await sound.click();
-    await expect(page.getByRole('button', { name: 'Suono spento' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Suono acceso' })).toBeVisible();
     const { sw, cw } = await page.evaluate(() => ({
       sw: document.documentElement.scrollWidth,
       cw: document.documentElement.clientWidth,

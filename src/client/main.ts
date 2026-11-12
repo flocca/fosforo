@@ -23,9 +23,13 @@ type SiteIndex = {
   latestSong?: { path: string; label: string; date: string };
 };
 
-// Il contesto audio nasce solo dentro un gesto: clic sull'interruttore, o il primo
-// tocco o tasto su un link profondo. Prima di allora `seek` non fa niente.
+// Il contesto audio nasce solo dentro un gesto: clic sull'interruttore, il tasto del suono
+// su un link già acceso, o il primo tocco o tasto sulla 404. Prima di allora `seek` non fa niente.
 const audio = createAudio();
+// Link già acceso (il visitatore ha acceso il monitor oggi): l'audio aspetta il tasto del
+// suono (o il comando `suono`), nessun altro gesto lo fa partire. Finché aspetta, spia e
+// tasto si mostrano spenti. Lo spegnimento e l'accensione chiudono l'attesa.
+let soundWaits = false;
 
 const parentOf = (path: string) => path.split('/').slice(0, -1).join('/');
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -60,9 +64,14 @@ function applyPhosphor(p: Phosphor) {
   if (button) button.title = `Fosfori: ${p}`;
 }
 
+// Il suono come lo vede il visitatore: spento se è la sua preferenza o se l'audio aspetta il tasto.
+const soundShownMuted = () => soundWaits || audio.muted;
+
 // Stesso percorso del comando `suono` e del tasto del suono: spia e tasto mostrano la
-// preferenza del visitatore, anche quando l'audio non è ancora partito.
-function showSound(muted: boolean) {
+// preferenza del visitatore, anche quando l'audio non è ancora partito (a monitor spento,
+// sulla 404); su un link già acceso, spenti finché l'audio aspetta il tasto.
+function showSound() {
+  const muted = soundShownMuted();
   document.querySelector('.sound-led')?.classList.toggle('is-on', !muted);
   const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (button) {
@@ -73,22 +82,35 @@ function showSound(muted: boolean) {
   }
 }
 
+// Accendere il suono mentre l'audio aspetta il tasto lo fa partire: ventola e ronzio.
 function applySound(muted: boolean) {
+  const starts = soundWaits && !muted;
+  if (starts) soundWaits = false;
   audio.setMuted(muted);
   prefs.setSoundOff(muted);
-  showSound(muted);
+  if (starts) audio.spinUp();
+  showSound();
+}
+
+// Spegnimento e accensione (interruttore, o Indietro a monitor spento) chiudono l'attesa:
+// l'audio parte con l'accensione, e spia e tasto tornano a mostrare la preferenza.
+function stopWaitingForSound() {
+  soundWaits = false;
+  showSound();
 }
 
 // Il tasto funziona subito, come il selettore dei fosfori: cambia il suono senza scrivere nel terminale.
 function initSoundButton() {
   const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (!button) return;
-  showSound(audio.muted);
+  showSound();
   button.disabled = false;
   // Spegnendo, pressione e rilascio si sentono prima che il suono vada via. Riaccendendo,
   // il tasto è sceso a suono spento: dopo si sente il rilascio (o tutto il tasto, con Invio).
+  // Se il tasto fa partire l'audio, la pressione resta muta (il contesto non c'era ancora)
+  // e anche il rilascio, finché la registrazione dei tasti non è pronta.
   bezelKey(button, audio, (held) => {
-    const muting = !audio.muted;
+    const muting = !soundShownMuted();
     if (muting && !held) audio.press();
     applySound(muting);
     if (!muting) {
@@ -130,6 +152,11 @@ async function loadIndex(cache?: RequestCache): Promise<SiteIndex> {
 }
 
 async function main() {
+  const page = document.body.dataset.page ?? 'item';
+  // deciso prima di mostrare il tasto del suono, con lo stesso giorno dell'avvio
+  const itemStart =
+    page === 'item' ? decideStart({ page, lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() }) : null;
+  soundWaits = itemStart === 'direct';
   initPhosphorButton();
   initSoundButton();
   initVisibility();
@@ -161,7 +188,6 @@ async function main() {
   }
 
   const { root, site } = index;
-  const page = document.body.dataset.page ?? 'item';
   // Il livello 0 della pagina di un elemento, com'era prima del terminale: lo schermo lo
   // sposta nel suo output, qui ne resta una copia per l'accensione da link.
   const level0: Node[] = page === 'item' ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
@@ -185,6 +211,7 @@ async function main() {
       if (power === 'off') {
         // a monitor spento / resta spento; un elemento si riaccende come un link profondo
         if (path === '') return;
+        stopWaitingForSound();
         audio.spinUp();
         setScreenOn(true);
         setPower('on');
@@ -278,8 +305,9 @@ async function main() {
     },
     setPhosphor: applyPhosphor,
     sound: {
+      // come il tasto: mentre l'audio aspetta, `suono` lo fa partire
       get muted() {
-        return audio.muted;
+        return soundShownMuted();
       },
       setMuted: applySound,
     },
@@ -453,6 +481,7 @@ async function main() {
     if (power !== 'off' || justSwitched()) return;
     setPower('warming');
     switchedAt = performance.now();
+    stopWaitingForSound();
     audio.powerOn();
     if (linkPath !== null) {
       const link = linkPath;
@@ -474,6 +503,8 @@ async function main() {
     setPower('collapsing');
     switchedAt = performance.now();
     led?.classList.remove('is-on');
+    // a monitor spento, come sulla home, il tasto del suono cambia solo la preferenza
+    stopWaitingForSound();
     audio.powerOff();
     collapsing = collapse(screenEl);
     screen.input.value = '';
@@ -508,14 +539,15 @@ async function main() {
     if (power === 'booting' && performance.now() - switchedAt > 250) booting?.skip();
   }
 
-  // Link profondo: il primo tocco o tasto fa ripartire ventola e ronzio. I gesti dopo
-  // sbloccano il contesto se il browser l'ha lasciato sospeso (un tocco su iOS e Android
-  // non basta: serve il rilascio). La home aspetta l'interruttore.
+  // 404 e pagina di un elemento rimasta accesa per l'indice in ritardo: il primo tocco o
+  // tasto fa ripartire ventola e ronzio. Un link già acceso aspetta il tasto del suono, la
+  // home l'interruttore. I gesti dopo la partenza sbloccano il contesto se il browser l'ha
+  // lasciato sospeso (un tocco su iOS e Android non basta: serve il rilascio).
   // Se il primo gesto è il pulsante (che spegne) l'ambiente non parte: lo spegnimento è muto.
   // A monitor spento l'audio nasce con l'interruttore, non qui.
   const unlockAudio = (e: Event) => {
     if (audio.started) audio.resume();
-    else if (page !== 'home' && power === 'on' && !(e.target as Element | null)?.closest?.('.power-button')) audio.spinUp();
+    else if (!soundWaits && page !== 'home' && power === 'on' && !(e.target as Element | null)?.closest?.('.power-button')) audio.spinUp();
   };
   for (const type of ['pointerdown', 'keydown', 'pointerup', 'touchend']) {
     document.addEventListener(type, unlockAudio, { capture: true, passive: true });
@@ -611,11 +643,8 @@ async function main() {
 
   const start = async () => {
     if (page === 'home') return router.replay(startHome);
-    if (page === 'item') {
-      const kind = decideStart({ page, lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() });
-      // con l'indice in ritardo il contenuto è già tornato visibile: non si spegne più
-      if (kind === 'power-link' && !indexLate) return startItemOff();
-    }
+    // con l'indice in ritardo il contenuto è già tornato visibile: non si spegne più
+    if (itemStart === 'power-link' && !indexLate) return startItemOff();
     setScreenOn(true);
     setPower('on');
     if (page === '404') return startNotFound();

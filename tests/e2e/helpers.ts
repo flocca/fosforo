@@ -18,3 +18,19 @@ export async function today(page: Page, lastBoot?: string) {
   });
   if (lastBoot) await page.addInitScript((d) => localStorage.setItem('fosforo.ultimoBoot', d), lastBoot);
 }
+
+// Conta i contesti audio creati, senza dipendere dall'uscita audio vera.
+export async function countAudioContexts(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { audioContexts: AudioContext[]; AudioContext: typeof AudioContext };
+    w.audioContexts = [];
+    const Real = w.AudioContext;
+    w.AudioContext = class extends Real {
+      constructor(opts?: AudioContextOptions) {
+        super(opts);
+        w.audioContexts.push(this);
+      }
+    };
+  });
+}
+export const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
