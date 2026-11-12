@@ -117,6 +117,8 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
   let motor: { src: AudioBufferSourceNode; g: GainNode } | null = null;
   let motorTimer: ReturnType<typeof setTimeout> | undefined;
   let diskFree = 0;
+  // passi e ricerche della testina già programmati: lo spegnimento li ferma
+  let diskPieces: { src: AudioBufferSourceNode; g: GainNode; end: number }[] = [];
   let lastStep = -1;
   let lastSeek = -1;
 
@@ -198,7 +200,29 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     }
     src.start(at, seg.start, d);
     busy(at + d);
-    return { src, g };
+    return { src, g, end: at + d };
+  }
+
+  // Un pezzo della testina: si tiene finché non è finito, per fermarlo allo spegnimento.
+  function diskPiece(i: number, at: number, gain: number, dur?: number) {
+    const t = ctx!.currentTime;
+    diskPieces = diskPieces.filter((p) => p.end > t);
+    diskPieces.push(play(floppy!, i, at, gain, dur));
+  }
+
+  // Spegnimento: la testina si ferma, anche i movimenti programmati più avanti.
+  function stopDisk(at: number) {
+    for (const { src, g } of diskPieces) {
+      g.gain.cancelScheduledValues(at);
+      g.gain.setTargetAtTime(0, at, SESSION_CUT_S / 5);
+      try {
+        src.stop(at + SESSION_CUT_S);
+      } catch {
+        // già fermo
+      }
+    }
+    diskPieces = [];
+    diskFree = 0;
   }
 
   // Ambiente continuo, in una sessione nuova. `transients`: spunto del trasformatore e
@@ -246,6 +270,9 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     const wait = Math.max(0, busyUntil - ctx!.currentTime);
     sleepTimer = setTimeout(() => {
       if (on) return;
+      // il tempo del contesto si è fermato prima della fine (pagina nascosta, muto): quello che
+      // resta tace adesso, altrimenti al risveglio (un tasto) la ventola riprenderebbe a rallentare
+      if (session && ctx!.currentTime < busyUntil) endSession(session, ctx!.currentTime);
       asleep = true;
       sync();
     }, wait * 1000 + 50);
@@ -323,7 +350,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
 
   function step(at: number, gain = FLOPPY.gain): number {
     lastStep = pick(FLOPPY.steps, lastStep);
-    play(floppy!, lastStep, at, gain);
+    diskPiece(lastStep, at, gain);
     return at + 0.03;
   }
 
@@ -336,14 +363,14 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     if (!fit.length) {
       // più lunga di ogni ricerca registrata: se ne mettono in fila due
       const i = segs.length - 1;
-      play(floppy!, FLOPPY.steps + i, at, FLOPPY.gain);
+      diskPiece(FLOPPY.steps + i, at, FLOPPY.gain);
       const done = Math.max(1, Math.floor((len(segs[i]) - 0.012) / FLOPPY.stepS));
       return seekTracks(n - done, at + len(segs[i]) - 0.01);
     }
     // mai la stessa ricerca due volte di fila, se ce n'è un'altra abbastanza lunga
     const others = fit.length > 1 ? fit.filter(([, i]) => i !== lastSeek) : fit;
     lastSeek = others[Math.floor(Math.random() * others.length)][1];
-    play(floppy!, FLOPPY.steps + lastSeek, at, FLOPPY.gain, need);
+    diskPiece(FLOPPY.steps + lastSeek, at, FLOPPY.gain, need);
     return at + need;
   }
 
@@ -415,14 +442,21 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       epoch++;
       switching = false;
       const t = now();
-      if (mech && !muted) play(mech, 1, t, MECH.gain.switchOff);
-      if (session) {
+      // da muto o a contesto fermo (pagina nascosta) il rallentamento resterebbe programmato
+      // nel tempo fermo del contesto e si sentirebbe alla ripresa: tutto tace subito
+      const silent = muted || hidden || ctx.state !== 'running';
+      if (mech && !silent) play(mech, 1, t, MECH.gain.switchOff);
+      if (session && silent) {
+        endSession(session, t);
+        busy(t + SESSION_CUT_S);
+      } else if (session) {
         const { hum, tube, fan } = session;
         tube.stop(t + 0.01);
         hum.stop(t + 0.01);
         fan.stop(t + 0.01);
         busy(t + 0.01 + FAN.spinDown + 0.1);
       }
+      stopDisk(t);
       clearTimeout(motorTimer);
       motorOff();
       sleepLater();

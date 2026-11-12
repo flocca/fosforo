@@ -552,6 +552,62 @@ describe('createAudio', () => {
     expect(oscs()).toHaveLength(count);
   });
 
+  it('da muto lo spegnimento ferma subito ventola, ronzio e tubo: riaccendendo il suono e premendo un tasto non riparte niente', async () => {
+    const { audio, contexts, oscs } = setup();
+    audio.powerOn();
+    await flush();
+    contexts[0].currentTime = 10;
+    audio.setMuted(true);
+    audio.powerOff();
+    audio.setMuted(false);
+    audio.press();
+    await flush();
+    // niente rallentamento programmato nel tempo fermo del contesto: tutto tace entro 0,1 s
+    expect(oscs().filter((o) => o.startHz === WHINE_HZ).length).toBeGreaterThan(0);
+    expect(oscs().every((o) => o.stops.length > 0 && o.stops[o.stops.length - 1] <= 10.1 + 1e-6)).toBe(true);
+  });
+
+  it('pagina nascosta durante il rallentamento: alla sospensione la ventola tace, un tasto dopo non la fa ripartire', async () => {
+    vi.useFakeTimers();
+    try {
+      const { audio, contexts, oscs } = setup();
+      audio.powerOn();
+      await vi.advanceTimersByTimeAsync(0);
+      const c = contexts[0];
+      c.currentTime = 10;
+      audio.powerOff();
+      c.currentTime = 10.5;
+      audio.suspend();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(c.state).toBe('suspended');
+      // il tempo del contesto resta fermo, il timer della sospensione scatta lo stesso
+      await vi.advanceTimersByTimeAsync(6000);
+      audio.resume();
+      audio.press();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(oscs().filter((o) => o.startHz === WHINE_HZ).length).toBeGreaterThan(0);
+      expect(oscs().every((o) => o.stops.length > 0 && o.stops[o.stops.length - 1] <= 10.6 + 1e-6)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('powerOff ferma anche i movimenti della testina già programmati', async () => {
+    const { audio, contexts } = setup();
+    audio.powerOn();
+    await flush();
+    const c = contexts[0];
+    c.currentTime = 0.5;
+    audio.seek(4);
+    audio.powerOff();
+    type Src = { loop: boolean; starts: number[][]; stops: number[]; buffer: { getChannelData(): Float32Array } | null };
+    const pieces = (c.nodes.filter((n) => n.kind === 'buffer') as unknown as Src[]).filter(
+      (s) => !s.loop && s.starts.length > 0 && s.buffer?.getChannelData().byteLength === FLOPPY.data.byteLength,
+    );
+    expect(pieces.length).toBeGreaterThan(4);
+    expect(pieces.every((s) => s.stops.length > 0 && s.stops[s.stops.length - 1] <= 0.6 + 1e-6)).toBe(true);
+  });
+
   it('seek a monitor spento restituisce 0', async () => {
     const { audio, contexts } = setup();
     audio.powerOn();
