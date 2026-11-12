@@ -7,6 +7,7 @@ import type { SiteConfig } from '../lib/schema';
 import { createAudio } from './audio';
 import { bezelKey } from './bezel-key';
 import { decideStart, runBoot, welcomeSpans } from './boot';
+import { WARMUP_MS } from './power-fx';
 import { complete } from './complete';
 import { createHistory } from './history';
 import { createRouter, currentPath } from './router';
@@ -326,6 +327,7 @@ async function main() {
       print: (text) => screen.printRom(text),
       diskSeek: term.diskSeek,
       sleep,
+      warmupMs: reducedMotion() ? 0 : WARMUP_MS,
     });
     booting = run;
     await run.done;

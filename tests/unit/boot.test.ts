@@ -46,7 +46,7 @@ function setup(kind: 'cold' | 'warm', tokens: { canzone?: string; data?: string 
   const clock = fakeClock();
   const printed: string[] = [];
   const seeks: number[] = [];
-  const boot = runBoot({ kind, rom: ROM, tokens, print: (l) => printed.push(l), diskSeek: (n) => seeks.push(n), sleep: clock.sleep });
+  const boot = runBoot({ kind, rom: ROM, tokens, print: (l) => printed.push(l), diskSeek: (n) => seeks.push(n), sleep: clock.sleep, warmupMs: 1200 });
   return { clock, printed, seeks, boot };
 }
 
@@ -59,8 +59,8 @@ describe('runBoot', () => {
     expect(done).toBe(true);
     expect(printed).toEqual(['ROM v1.3', 'MEMORY OK', 'LOADING 10/11/2026', 'LOGO']);
     expect(seeks).toEqual([1, 4]);
-    // lampo, attesa, poi le pause delle righe stampate
-    expect(clock.calls).toEqual([500, 900, 300, 700, 700, 1300]);
+    // bagliore, poi le pause delle righe stampate
+    expect(clock.calls).toEqual([1200, 300, 700, 700, 1300]);
   });
 
   it('a freddo con {canzone} stampa anche quella riga', async () => {
@@ -73,8 +73,7 @@ describe('runBoot', () => {
 
   it('skip() a metà stampa il resto e risolve done senza altre attese', async () => {
     const { clock, printed, boot } = setup('cold');
-    await clock.tick(); // lampo
-    await clock.tick(); // attesa
+    await clock.tick(); // bagliore
     await clock.tick(); // dopo la prima riga
     expect(printed).toEqual(['ROM v1.3', 'MEMORY OK']);
     const callsBefore = clock.calls.length;
@@ -96,7 +95,7 @@ describe('runBoot', () => {
     expect(printed).toEqual(['ROM v1.3', 'MEMORY OK', 'LOADING 10/11/2026', 'LOGO']);
   });
 
-  it('a caldo: lampo, solo la prima riga, circa 1 s in tutto', async () => {
+  it('a caldo: bagliore, solo la prima riga, circa 1,5 s in tutto', async () => {
     const { clock, printed, boot } = setup('warm');
     let done = false;
     boot.done.then(() => (done = true));
@@ -104,8 +103,57 @@ describe('runBoot', () => {
     expect(done).toBe(true);
     expect(printed).toEqual(['ROM v1.3']);
     const total = clock.calls.reduce((a, b) => a + b, 0);
-    expect(total).toBeGreaterThanOrEqual(800);
-    expect(total).toBeLessThanOrEqual(1200);
+    expect(total).toBe(1500);
+  });
+
+  it.each(['cold', 'warm'] as const)('%s: la prima riga arriva esattamente dopo warmupMs', async (kind) => {
+    const { clock, printed } = setup(kind);
+    expect(clock.calls).toEqual([1200]);
+    expect(printed).toEqual([]);
+    await clock.tick();
+    expect(printed).toEqual(['ROM v1.3']);
+  });
+
+  it('warmupMs 0 stampa la prima riga subito', () => {
+    const printed: string[] = [];
+    runBoot({ kind: 'cold', rom: ROM, tokens: {}, print: (l) => printed.push(l), diskSeek: () => {}, sleep: () => new Promise(() => {}), warmupMs: 0 });
+    expect(printed).toEqual(['ROM v1.3']);
+  });
+
+  it('cancel() durante il boot a freddo: niente altre righe, done false', async () => {
+    const { clock, printed, boot } = setup('cold');
+    await clock.tick();
+    await clock.tick();
+    expect(printed).toEqual(['ROM v1.3', 'MEMORY OK']);
+    boot.cancel();
+    expect(await boot.done).toBe(false);
+    await clock.tick();
+    await clock.tick();
+    expect(printed).toEqual(['ROM v1.3', 'MEMORY OK']);
+  });
+
+  it('cancel() durante il bagliore non stampa nulla', async () => {
+    const { clock, printed, boot } = setup('cold');
+    boot.cancel();
+    expect(await boot.done).toBe(false);
+    await clock.tick();
+    expect(printed).toEqual([]);
+  });
+
+  it('skip() risolve done true; cancel() dopo skip() resta true', async () => {
+    const { printed, boot } = setup('cold');
+    boot.skip();
+    boot.cancel();
+    expect(await boot.done).toBe(true);
+    expect(printed).toHaveLength(4);
+  });
+
+  it('skip() dopo cancel() non stampa e done resta false', async () => {
+    const { printed, boot } = setup('cold');
+    boot.cancel();
+    boot.skip();
+    expect(await boot.done).toBe(false);
+    expect(printed).toEqual([]);
   });
 });
 

@@ -108,8 +108,8 @@ test('seconda visita nello stesso giorno: avvio rapido', async ({ page }) => {
   await page.reload();
   await powerButton(page).click();
   const clicked = Date.now();
-  await expect(output(page)).toContainText(WELCOME, { timeout: 1500 });
-  expect(Date.now() - clicked).toBeLessThan(1500);
+  await expect(output(page)).toContainText(WELCOME, { timeout: 1900 });
+  expect(Date.now() - clicked).toBeLessThan(1900);
   await expect(romLines(page, FIRST_ROM)).toHaveCount(1);
   await expect(romLines(page, SECOND_ROM)).toHaveCount(0);
 });

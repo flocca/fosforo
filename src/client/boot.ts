@@ -19,9 +19,7 @@ export function decideStart(input: {
 type RomLine = SiteConfig['boot']['rom'][number];
 type Tokens = { canzone?: string; data?: string };
 
-const FLASH_MS = 500; // lampo di accensione (crt.css, .screen.is-powering)
-const COLD_WAIT_MS = 900; // il tubo che si scalda
-const WARM_TAIL_MS = 500; // a caldo: lampo + prima riga + questa attesa, circa 1 s
+const WARM_TAIL_MS = 300; // a caldo: dopo la prima riga, prima del benvenuto (circa 1,5 s in tutto)
 
 // Sostituisce {canzone} e {data}; null se manca un valore (la riga si salta).
 function fill(text: string, tokens: Tokens): string | null {
@@ -41,7 +39,8 @@ export function runBoot(opts: {
   print(line: string): void;
   diskSeek(n: number): void;
   sleep(ms: number): Promise<void>;
-}): { done: Promise<void>; skip(): void } {
+  warmupMs: number; // dal via alla prima riga, per entrambi i tipi di avvio
+}): { done: Promise<boolean>; skip(): void; cancel(): void } {
   const prepared: RomLine[] = [];
   for (const l of opts.rom) {
     const text = fill(l.text, opts.tokens);
@@ -52,22 +51,27 @@ export function runBoot(opts: {
 
   let next = 0;
   let finished = false;
-  let resolveDone!: () => void;
-  const done = new Promise<void>((r) => (resolveDone = r));
+  let resolveDone!: (completed: boolean) => void;
+  const done = new Promise<boolean>((r) => (resolveDone = r));
 
   // Stampa subito tutto ciò che manca; chiamarla di nuovo non fa nulla.
   const finish = () => {
     if (finished) return;
     finished = true;
     while (next < lines.length) opts.print(lines[next++].text);
-    resolveDone();
+    resolveDone(true);
+  };
+
+  // Ferma il boot senza stampare altro; dopo finish o cancel non fa nulla.
+  const cancel = () => {
+    if (finished) return;
+    finished = true;
+    resolveDone(false);
   };
 
   (async () => {
-    await opts.sleep(FLASH_MS);
-    if (finished) return;
-    if (opts.kind === 'cold') {
-      await opts.sleep(COLD_WAIT_MS);
+    if (opts.warmupMs > 0) {
+      await opts.sleep(opts.warmupMs);
       if (finished) return;
     }
     while (next < lines.length) {
@@ -83,7 +87,7 @@ export function runBoot(opts: {
     finish();
   });
 
-  return { done, skip: finish };
+  return { done, skip: finish, cancel };
 }
 
 // La parola "help" del benvenuto si può cliccare; senza "help" il testo resta semplice.
