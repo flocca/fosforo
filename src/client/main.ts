@@ -391,14 +391,17 @@ async function main() {
   }
 
   // Spegnimento, prima parte, subito allo scatto: il boot in corso si ferma, la spia si spegne,
-  // il campo si svuota e perde il fuoco (sul telefono si chiude la tastiera). Da qui pulsante,
-  // clic, INVIO e comandi in coda non fanno niente. Dice false se il monitor non era acceso.
+  // parte il collasso insieme al suono, il campo si svuota e perde il fuoco (sul telefono si
+  // chiude la tastiera). Da qui pulsante, clic, INVIO e comandi in coda non fanno niente.
+  // Dice false se il monitor non era acceso.
+  let collapsing: Promise<void> = Promise.resolve();
   function beginPowerOff(): boolean {
     if (power !== 'on' && power !== 'booting') return false;
     booting?.cancel();
     setPower('collapsing');
     led?.classList.remove('is-on');
     audio.powerOff();
+    collapsing = collapse(screenEl);
     screen.input.value = '';
     screen.input.blur();
     screen.showPrompt(false);
@@ -406,10 +409,11 @@ async function main() {
     return true;
   }
 
-  // Seconda parte, nella coda (dopo il comando che stava lavorando): collasso, schermo vuoto,
-  // radice e indirizzo / (sostituito se è già /), poi lo stato spento con la scritta.
+  // Seconda parte, nella coda (dopo il comando che stava lavorando, che stampa sotto il collasso):
+  // fine del collasso, schermo vuoto, radice e indirizzo / (sostituito se è già /), poi lo
+  // stato spento con la scritta.
   async function finishPowerOff() {
-    await collapse(screenEl);
+    await collapsing;
     screen.clear();
     term.setCwd('');
     router.navigate('', 'push');

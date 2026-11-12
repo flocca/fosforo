@@ -146,6 +146,9 @@ test('Review Focus 4: spegnere mentre cat aspetta la rete, niente stampato a mon
   await page.keyboard.press('Enter');
   await expect(output(page)).toContainText('$ cat /chi-sono');
   await powerButton(page, 'Spegni').click();
+  // il collasso parte allo scatto, senza aspettare il comando in corso
+  await expect(screenEl(page)).toHaveClass(/is-collapsing/, { timeout: 100 });
+  await page.waitForTimeout(1000);
   release();
   await expect(screenEl(page)).toHaveClass(/is-off/, { timeout: 3000 });
   await page.waitForTimeout(500);
