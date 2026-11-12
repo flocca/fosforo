@@ -178,9 +178,8 @@ function frameOverlaySvg(t: CardText): Buffer {
   return svg(
     OG_W,
     OG_H,
-    `<defs><linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0.3" stop-color="${BG}" stop-opacity="0"/><stop offset="0.75" stop-color="${BG}" stop-opacity="0.75"/><stop offset="1" stop-color="${BG}" stop-opacity="0.85"/></linearGradient></defs>` +
-      // il fotogramma un po' più scuro, come un fosforo a luminosità ridotta: il testo resta leggibile
-      `<rect width="${OG_W}" height="${OG_H}" fill="${BG}" fill-opacity="0.3"/>` +
+    `<defs><linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0.38" stop-color="${BG}" stop-opacity="0"/><stop offset="0.55" stop-color="${BG}" stop-opacity="0.72"/><stop offset="1" stop-color="${BG}" stop-opacity="0.9"/></linearGradient></defs>` +
+      // il fotogramma a piena luminosità nella metà alta; un velo scuro solo sotto titolo e artista
       `<rect width="${OG_W}" height="${OG_H}" fill="url(#sh)"/>` +
       textLayer(cardLayout(t, true), false),
   );
@@ -391,10 +390,49 @@ export async function letterbox(thumb: Buffer): Promise<{ top: number; bottom: n
   return { top, bottom, width, height };
 }
 
-// Fotogramma a tutta area: bande nere tolte, ritaglio centrato.
-async function croppedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> {
+// Bande laterali (pillarbox: un'immagine quadrata o 4:3 dentro il video 16:9): colonne di un colore
+// uniforme, nero o grigio, uguale a quello del bordo. Mai più di metà della larghezza in tutto.
+export async function pillarbox(thumb: Buffer): Promise<{ left: number; right: number; width: number; height: number }> {
+  const { data, info } = await sharp(thumb).greyscale().raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const column = (x: number) => {
+    let sum = 0;
+    let sq = 0;
+    for (let y = 0; y < height; y++) {
+      const v = data[(y * width + x) * channels];
+      sum += v;
+      sq += v * v;
+    }
+    const mean = sum / height;
+    return { mean, sd: Math.sqrt(Math.max(0, sq / height - mean * mean)) };
+  };
+  const scan = (edge: number, step: number) => {
+    const ref = column(edge).mean;
+    let n = 0;
+    for (let x = edge; n < width / 2; x += step, n++) {
+      const c = column(x);
+      if (c.sd > 6 || Math.abs(c.mean - ref) > 8) break;
+    }
+    return n;
+  };
+  let left = scan(0, 1);
+  let right = scan(width - 1, -1);
+  // qualche colonna in più per la sfumatura JPEG e l'eventuale bordo della copertina
+  const edge = Math.max(1, Math.round(width / 120));
+  if (left) left += edge;
+  if (right) right += edge;
+  if (left + right > width / 2) return { left: 0, right: 0, width, height };
+  return { left, right, width, height };
+}
+
+// Fotogramma a tutta area: bande nere tolte, ritaglio centrato. Con `sides` anche le bande laterali.
+async function croppedFrame(thumb: Buffer, w: number, h: number, sides = false): Promise<Sharp> {
   const { top, bottom, width, height } = await letterbox(thumb);
-  const base = top + bottom > 0 ? sharp(thumb).extract({ left: 0, top, width, height: height - top - bottom }) : sharp(thumb);
+  const { left, right } = sides ? await pillarbox(thumb) : { left: 0, right: 0 };
+  const base =
+    top + bottom + left + right > 0
+      ? sharp(thumb).extract({ left, top, width: width - left - right, height: height - top - bottom })
+      : sharp(thumb);
   return base.resize(w, h, { fit: 'cover', position: 'centre' });
 }
 
@@ -408,11 +446,15 @@ async function tintedFrame(thumb: Buffer, w: number, h: number): Promise<Sharp> 
 // luci più forti che virano appena al bianco come un fosforo saturo.
 async function phosphorFrame(thumb: Buffer): Promise<Buffer> {
   // un solo canale, la luminanza: l'alfa (se c'è) è tolto prima della scala di grigi
-  const { data: grey, info } = await (await croppedFrame(thumb, OG_W, OG_H))
+  // bande laterali tolte e contrasto steso (1°-99° percentile): un fotogramma chiaro o spento
+  // (una copertina disegnata a matita, un video scuro) resta riconoscibile
+  const stretched = await (await croppedFrame(thumb, OG_W, OG_H, true))
     .removeAlpha()
     .greyscale()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
+    .normalise({ lower: 1, upper: 99 })
+    .png()
+    .toBuffer();
+  const { data: grey, info } = await sharp(stretched).greyscale().raw().toBuffer({ resolveWithObject: true });
   if (info.channels !== 1) throw new Error(`fotogramma in scala di grigi con ${info.channels} canali invece di 1`);
   const rgb = Buffer.alloc(OG_W * OG_H * 3);
   for (let p = 0; p < OG_W * OG_H; p++) {

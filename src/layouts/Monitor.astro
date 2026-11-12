@@ -11,6 +11,7 @@ import { buildStore } from '../lib/store';
 
 type Props = {
   title: string;
+  ogTitle?: string;
   description: string;
   canonical: string; // percorso con barra iniziale
   ogPath: string;
@@ -20,7 +21,7 @@ type Props = {
   noindex?: boolean;
 };
 
-const { title, description, canonical, ogPath, page, path, aliasTarget, noindex } = Astro.props;
+const { title, ogTitle, description, canonical, ogPath, page, path, aliasTarget, noindex } = Astro.props;
 const abs = (p: string) => new URL(p, Astro.site).href;
 // Targhetta del monitor: la prima riga della ROM fino al primo doppio spazio ("FOSFORO VT-78").
 const { site } = await buildStore();
@@ -36,7 +37,7 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
     <link rel="canonical" href={abs(canonical)} />
     {noindex && <meta name="robots" content="noindex" />}
     <meta property="og:type" content="website" />
-    <meta property="og:title" content={title} />
+    <meta property="og:title" content={ogTitle ?? title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={abs(canonical)} />
     <meta property="og:image" content={abs(ogPath)} />

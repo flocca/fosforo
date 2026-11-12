@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
 import { cmdToUrl, homeBlocks, level0Html, promptCommand } from '../../src/lib/level0';
 import { siteSchema } from '../../src/lib/schema';
-import { BEZEL, OG_MARGIN, OG_W, RIM, barrel, cardLayout, letterbox, ogImage, openingDistance, songImage, textWidth } from '../../src/lib/cards';
+import { BEZEL, OG_MARGIN, OG_W, RIM, barrel, cardLayout, letterbox, ogImage, openingDistance, pillarbox, songImage, textWidth } from '../../src/lib/cards';
 
 describe('cmdToUrl', () => {
   it('traduce cat e cd in URL senza barra finale', () => {
@@ -81,6 +81,22 @@ describe('immagini', () => {
     expect(b.bottom).toBeLessThanOrEqual(50);
     const plain = await sharp({ create: { width: 480, height: 270, channels: 3, background: '#888' } }).jpeg().toBuffer();
     expect(await letterbox(plain)).toMatchObject({ top: 0, bottom: 0 });
+  });
+  it('trova le bande laterali grigie della miniatura (copertina quadrata nel video 16:9)', async () => {
+    // contenuto a righe orizzontali: ogni colonna varia dall'alto in basso, a differenza delle bande
+    const stripes = Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720"><rect width="720" height="720" fill="#eee"/>` +
+        Array.from({ length: 36 }, (_, i) => `<rect x="0" y="${i * 20}" width="720" height="6" fill="#333"/>`).join('') +
+        `</svg>`,
+    );
+    const thumb = await sharp(stripes).extend({ left: 280, right: 280, background: '#404040' }).jpeg().toBuffer();
+    const b = await pillarbox(thumb);
+    expect(b.left).toBeGreaterThanOrEqual(280);
+    expect(b.left).toBeLessThanOrEqual(295);
+    expect(b.right).toBeGreaterThanOrEqual(280);
+    expect(b.right).toBeLessThanOrEqual(295);
+    const plain = await sharp(stripes).resize(1280, 720, { fit: 'fill' }).jpeg().toBuffer();
+    expect(await pillarbox(plain)).toMatchObject({ left: 0, right: 0 });
   });
   // media di una riga solo nella parte centrale, dentro il tubo (la curvatura scurisce i bordi)
   const rowMeanInside = async (png: Buffer, y: number) => {

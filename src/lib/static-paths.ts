@@ -19,6 +19,7 @@ export function pageNodes(store: Store): FsNode[] {
 
 export type PageMeta = {
   title: string;
+  ogTitle?: string; // titolo della scheda social, se diverso dal <title>
   description: string;
   canonical: string; // percorso con barra iniziale
   ogPath: string; // `/og/...png`
@@ -74,6 +75,8 @@ export function pageMeta(path: string, store: Store): PageMeta | null {
   }
   return {
     title: `${title} · ${host}`,
+    // canzoni: titolo e artista sono già nel testo del post e nell'immagine, sotto resta la rubrica
+    ...(item?.kind === 'song' ? { ogTitle: 'Una canzone al giorno' } : {}),
     description: clip(description || `${title} su ${host}`),
     canonical: `/${node.path}`,
     ogPath: `/og/${node.path}.png`,
