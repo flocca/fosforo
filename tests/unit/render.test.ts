@@ -56,6 +56,20 @@ describe('renderPath', () => {
     expect(b.some((l) => l.includes('100%'))).toBe(true);
     expect(b).toContain('Bello davvero.');
   });
+  it('libro finito: i 14 giorni finiscono con il suo ultimo giorno di lettura', () => {
+    const b = lines(renderPath('lettura/termination-shock', store)!);
+    expect(b).toContain('ultimi 14 giorni del libro');
+    expect(b).not.toContain('ultimi 14 giorni');
+    const days = b.filter((l) => /^(lun|mar|mer|gio|ven|sab|dom) \d\d\/\d\d /.test(l));
+    expect(days).toHaveLength(14);
+    expect(days[0]).toMatch(/^mar 20\/10 /);
+    expect(days[13]).toMatch(/^lun 02\/11 /);
+  });
+  it('libro in corso: i 14 giorni finiscono con l\'ultima lettura del sito', () => {
+    const b = lines(renderPath('lettura/il-nome-della-rosa', store)!);
+    const days = b.filter((l) => /^(lun|mar|mer|gio|ven|sab|dom) \d\d\/\d\d /.test(l));
+    expect(days[13]).toMatch(/^mar 10\/11 /);
+  });
   it('libro in corso', () => {
     const b = lines(renderPath('lettura/il-nome-della-rosa', store)!);
     expect(b.some((l) => l.includes('42%'))).toBe(true);
@@ -76,6 +90,10 @@ describe('renderPath', () => {
     expect(spans(b).some((s) => s.cmd === 'cat /lettura/il-nome-della-rosa')).toBe(true);
     for (const x of l.filter((r) => /^(lun|mar|mer|gio|ven|sab|dom|dal) \d\d\/\d\d /.test(r) || r.includes('░'))) expect(x.length).toBeLessThanOrEqual(34);
     expect(l.some((x) => x.includes('15 min'))).toBe(true);
+  });
+  it('obiettivo con since: il conteggio dice da quando parte', () => {
+    const s = buildStoreFrom({ songs: [], books: [{ slug: 'a', data: { ...read('lettura/il-nome-della-rosa.json'), slug: 'a' } }], posts: [], pages: [], site: store.site, goal: { year: 2026, since: '2026-11-11', target: 2, finished: 0 } });
+    expect(lines(renderPath('lettura', s)!)).toContain("Libri finiti dall'11/11/2026: 0 di 2");
   });
   it('lettura senza obiettivo né giorni', () => {
     const s = buildStoreFrom({ songs: [], books: [{ slug: 'a', data: { ...read('lettura/il-nome-della-rosa.json'), slug: 'a', days: [] } }], posts: [], pages: [], site: store.site });

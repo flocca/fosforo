@@ -6,6 +6,12 @@ export function formatDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+// "dal 12/11/2026", con l'elisione davanti a un giorno che si legge con una vocale: "dall'11/11/2026".
+export function fromDate(iso: string): string {
+  const d = iso.slice(8, 10);
+  return `${d === '01' || d === '08' || d === '11' ? "dall'" : 'dal '}${formatDate(iso)}`;
+}
+
 // Data locale del visitatore (non UTC).
 export function localToday(now: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');

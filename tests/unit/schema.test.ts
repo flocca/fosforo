@@ -88,6 +88,12 @@ describe('goalSchema', () => {
       finished: 1,
     });
   });
+  it('accetta since, il giorno da cui parte il conteggio, solo nello stesso anno', () => {
+    expect(goalSchema.parse({ year: 2026, since: '2026-11-12', target: 2, finished: 0 }).since).toBe('2026-11-12');
+    expect(() => goalSchema.parse({ year: 2026, since: '2025-11-12', target: 2, finished: 0 })).toThrow();
+    expect(() => goalSchema.parse({ year: 2026, since: '12/11/2026', target: 2, finished: 0 })).toThrow();
+    expect(() => goalSchema.parse({ year: 2026, since: null, target: 2, finished: 0 })).toThrow();
+  });
 });
 
 describe('assertMarkdownBody', () => {

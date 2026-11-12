@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bar, dailyTotals, formatDuration, lastDays, lastWeeks, progressBar } from '../../src/lib/reading';
 import { dailyRows, weeklyRows } from '../../src/lib/reading';
-import { formatDate, localToday } from '../../src/lib/dates';
+import { formatDate, fromDate, localToday } from '../../src/lib/dates';
 import type { Book } from '../../src/lib/schema';
 
 const book = (days: { date: string; seconds: number }[]): Book => ({
@@ -59,5 +59,15 @@ describe('righe del ritmo', () => {
   it('stanno in 34 colonne anche con 99 h 59 min', () => {
     const t = new Map([['2026-11-10', 99 * 3600 + 59 * 60], ['2026-10-20', 60]]);
     for (const r of [...dailyRows(t, '2026-11-10', 14), ...weeklyRows(t, '2026-11-10', 12)]) expect(r.length).toBe(34);
+  });
+});
+
+describe('fromDate', () => {
+  it('elide davanti a 1, 8 e 11', () => {
+    expect(fromDate('2026-11-12')).toBe('dal 12/11/2026');
+    expect(fromDate('2026-11-11')).toBe("dall'11/11/2026");
+    expect(fromDate('2026-03-01')).toBe("dall'01/03/2026");
+    expect(fromDate('2026-03-08')).toBe("dall'08/03/2026");
+    expect(fromDate('2026-03-18')).toBe('dal 18/03/2026');
   });
 });

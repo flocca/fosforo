@@ -86,7 +86,7 @@ Una nota breve sulla canzone di oggi (opzionale).
 
 `id` è di 32 caratteri esadecimali, `progress` va da 0 a 1, `status` è `in-corso` o `finito`, gli istanti sono ISO 8601 con offset. `finishedAt` c'è se e solo se `status` è `finito`.
 
-`lettura/obiettivo.json` è l'obiettivo dell'anno: `{ "year": 2026, "target": 2, "finished": 1 }`.
+`lettura/obiettivo.json` è l'obiettivo dell'anno: `{ "year": 2026, "target": 2, "finished": 1 }`. Se il conteggio non parte dal 1° gennaio (l'anno in cui il servizio si attiva), `since` dice il giorno da cui parte, `YYYY-MM-DD` nello stesso anno: `{ "year": 2026, "since": "2026-11-12", "target": 2, "finished": 0 }`. Il sito scrive allora "Libri finiti dal 12/11/2026" (o "dall'11/11/2026") invece di "Libri finiti nel 2026".
 
 `lettura/<slug>.md` è una nota facoltativa sul libro, solo markdown senza frontmatter.
 

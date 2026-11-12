@@ -3,7 +3,7 @@ import type { Block, Span } from './blocks';
 import { findByPath, listing } from './fs-tree';
 import { markdownToBlocks } from './markdown';
 import type { Item, Store } from './store';
-import { formatDate } from './dates';
+import { formatDate, fromDate } from './dates';
 import { dailyRows, dailyTotals, formatDuration, progressBar, weeklyRows } from './reading';
 import type { Book } from './schema';
 
@@ -28,8 +28,8 @@ function rhythmEnd(all: Book[]): string | undefined {
   return end;
 }
 
-function rhythm(totals: Map<string, number>, end: string, withWeeks: boolean): Block[] {
-  const out: Block[] = [line(text('ultimi 14 giorni', 'dim'))];
+function rhythm(totals: Map<string, number>, end: string, withWeeks: boolean, label = 'ultimi 14 giorni'): Block[] {
+  const out: Block[] = [line(text(label, 'dim'))];
   for (const r of dailyRows(totals, end, 14)) out.push(line(text(r)));
   if (withWeeks) {
     out.push(blank, line(text('ultime 12 settimane', 'dim')));
@@ -76,8 +76,11 @@ function book(item: Extract<Item, { kind: 'book' }>, store: Store): Block[] {
   ];
   if (b.finishedAt) out.push(line(text(`finito il ${formatDate(b.finishedAt)}`)));
   out.push(line(text(`tempo totale: ${formatDuration(b.totalSeconds)}`)));
-  const end = rhythmEnd(books(store));
-  if (end) out.push(blank, ...rhythm(dailyTotals([b]), end, false));
+  // Un libro finito mostra i suoi ultimi 14 giorni; uno in corso arriva all'ultima lettura del sito,
+  // così le pause recenti restano visibili.
+  const done = b.status === 'finito';
+  const end = rhythmEnd(done ? [b] : books(store));
+  if (end) out.push(blank, ...rhythm(dailyTotals([b]), end, false, done ? 'ultimi 14 giorni del libro' : undefined));
   if (item.note?.trim()) out.push(blank, ...md(item.note, store, '/_img/lettura'));
   return out;
 }
@@ -107,7 +110,8 @@ function reading(store: Store): Block[] {
   );
   if (store.goal) {
     const g = store.goal;
-    out.push(blank, line(text(`Libri finiti nel ${g.year}: ${g.finished} di ${g.target}`)));
+    const period = g.since ? fromDate(g.since) : `nel ${g.year}`;
+    out.push(blank, line(text(`Libri finiti ${period}: ${g.finished} di ${g.target}`)));
   }
   const end = rhythmEnd(all);
   if (end) {

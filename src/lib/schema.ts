@@ -49,9 +49,14 @@ export const bookSchema = z
     path: ['finishedAt'],
   });
 
+// `since`: il giorno da cui parte il conteggio, solo se non è il 1° gennaio (l'anno di attivazione).
 export const goalSchema = z
-  .object({ year: nonNegInt, target: nonNegInt, finished: nonNegInt })
-  .strict();
+  .object({ year: nonNegInt, since: date.optional(), target: nonNegInt, finished: nonNegInt })
+  .strict()
+  .refine((g) => g.since === undefined || g.since.startsWith(`${g.year}-`), {
+    message: '`since` deve cadere nello stesso anno di `year`',
+    path: ['since'],
+  });
 
 export const postSchema = z
   .object({
