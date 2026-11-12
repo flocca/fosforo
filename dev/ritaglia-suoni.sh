@@ -7,7 +7,8 @@
 #
 # Gli originali a piena qualità (scaricati a mano da Freesound) si mettono in
 # $ORIGINALI con lo stesso nome (.wav o .flac) e hanno la precedenza sulle anteprime:
-# l'anteprima MP3 ha un ritardo diverso, quindi con un originale i tempi vanno ricontrollati.
+# i file di registrazioni/ vengono dagli originali (.cache/originali). Con un originale nuovo i tempi vanno
+# ricontrollati: per i quattro di oggi l'anteprima in .cache/suoni è allineata (scarto < 0,2 ms).
 set -euo pipefail
 export LC_ALL=C # punto decimale, non virgola
 cd "$(dirname "$0")/.."
