@@ -224,6 +224,9 @@ async function main() {
       },
       setMuted: applySound,
     },
+    async shutdown() {
+      // provvisorio: lo spegnimento vero arriva con il compito 5
+    },
     // Schermo spento 400 ms, poi boot completo qualunque sia la data, dalla radice
     // (con il movimento ridotto l'avvio rapido).
     async reboot() {

@@ -16,6 +16,7 @@ export interface Terminal {
   setPhosphor(p: Phosphor): void;
   sound: { muted: boolean; setMuted(m: boolean): void };
   reboot(): void | Promise<void>; // finisce quando il nuovo boot è concluso
+  shutdown(): void | Promise<void>; // spegne il monitor; finisce quando lo schermo è spento
   /** Muove il disco; finisce quando il risultato può comparire (subito, se il disco non suona). */
   diskSeek(n: number): Promise<void> | void;
 }
@@ -30,6 +31,7 @@ const HELP: [string, string][] = [
   ['suono', 'accende o spegne il suono'],
   ['fosfori', 'cambia colore: verde, ambra, bianco'],
   ['reboot', 'riavvia il terminale'],
+  ['shutdown', 'spegne il terminale'],
   ['help', 'questo elenco'],
 ];
 
@@ -145,7 +147,16 @@ export function createShell(root: FsNode, term: Terminal) {
       await term.reboot();
       return true;
     },
+
+    // Gli argomenti sono ignorati; false ferma la catena `&&`.
+    async shutdown() {
+      term.print([line(t('SYSTEM HALTED'))]);
+      await term.shutdown();
+      return false;
+    },
   };
+  // Sinonimi silenziosi: né in `help` né nel completamento.
+  for (const alias of ['spegni', 'poweroff', 'halt', 'exit']) commands[alias] = commands.shutdown;
 
   async function runOne(segment: string): Promise<Result> {
     const [name, ...args] = segment.trim().split(/\s+/);

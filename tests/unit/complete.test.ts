@@ -8,6 +8,13 @@ describe('completamento', () => {
     expect(complete(root, '', 'he')).toEqual({ line: 'help', options: [] });
   });
 
+  it('shutdown si completa, i sinonimi silenziosi no', () => {
+    expect(complete(root, '', 'shu')).toEqual({ line: 'shutdown', options: [] });
+    expect(complete(root, '', 'spe').line).toBe('spe');
+    expect(complete(root, '', 'hal').line).toBe('hal');
+    expect(complete(root, '', 'po').line).toBe('po');
+  });
+
   it('più corrispondenze: prefisso comune e opzioni', () => {
     expect(complete(root, '', 'cat can')).toEqual({ line: 'cat canzon', options: ['canzone-del-giorno', 'canzoni/'] });
   });

@@ -38,6 +38,7 @@ export type FakeTerminal = Terminal & {
   seeks: number[];
   clears: number;
   reboots: number;
+  shutdowns: number;
   text(): string[]; // righe stampate, come testo semplice
 };
 
@@ -50,6 +51,7 @@ export function fakeTerminal(): FakeTerminal {
     seeks: [],
     clears: 0,
     reboots: 0,
+    shutdowns: 0,
     cwd: '',
     phosphor: 'verde',
     print(blocks) {
@@ -83,6 +85,9 @@ export function fakeTerminal(): FakeTerminal {
     },
     reboot() {
       t.reboots++;
+    },
+    shutdown() {
+      t.shutdowns++;
     },
     diskSeek(n) {
       t.seeks.push(n);

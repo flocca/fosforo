@@ -159,6 +159,32 @@ describe('shell', () => {
     expect((await run('reboot')).reboots).toBe(1);
   });
 
+  it('shutdown stampa SYSTEM HALTED e spegne', async () => {
+    const t = await run('shutdown');
+    expect(t.text()).toEqual(['SYSTEM HALTED']);
+    expect(t.shutdowns).toBe(1);
+  });
+
+  it('shutdown now ignora gli argomenti', async () => {
+    const t = await run('shutdown now');
+    expect(t.text()).toEqual(['SYSTEM HALTED']);
+    expect(t.shutdowns).toBe(1);
+  });
+
+  it('spegni, poweroff, halt, exit fanno lo stesso', async () => {
+    for (const alias of ['spegni', 'poweroff', 'halt', 'exit']) {
+      const t = await run(alias);
+      expect(t.text()).toEqual(['SYSTEM HALTED']);
+      expect(t.shutdowns).toBe(1);
+    }
+  });
+
+  it('shutdown && ls si ferma allo spegnimento', async () => {
+    const t = await run('shutdown && ls');
+    expect(t.text()).toEqual(['SYSTEM HALTED']);
+    expect(t.seeks).toEqual([]);
+  });
+
   it('suono senza argomento alterna', async () => {
     const t = fakeTerminal();
     const shell = createShell(root, t);
@@ -200,7 +226,7 @@ describe('shell', () => {
     const shell = createShell(root, t);
     expect(t.printed[0]).toHaveLength(shell.commands.length);
     const names = t.printed[0].map((b) => (b.type === 'line' ? b.spans[0] : null));
-    expect(names.map((s) => s?.cmd)).toEqual(['ls', 'cd', 'cat', 'pwd', 'clear', 'suono', 'fosfori', 'reboot', 'help']);
+    expect(names.map((s) => s?.cmd)).toEqual(['ls', 'cd', 'cat', 'pwd', 'clear', 'suono', 'fosfori', 'reboot', 'shutdown', 'help']);
     expect(t.text()[0]).toMatch(/^ls\s+elenca i file$/);
     expect(t.text()).toContain(t.text().find((l) => l.endsWith('cambia colore: verde, ambra, bianco')));
   });
