@@ -1,6 +1,6 @@
 // Il banco dei suoni esiste solo con `astro dev`: nella build non deve esserci niente.
 import { readdirSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('la build non contiene il banco dei suoni', async ({ request }) => {
   const files = readdirSync('dist', { recursive: true }).map(String);

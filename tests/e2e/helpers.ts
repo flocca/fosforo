@@ -12,5 +12,9 @@ export const romLines = (page: Page, text: string) => output(page).locator('.ter
 // Il giorno del visitatore lo decide l'orologio della pagina.
 export async function today(page: Page, lastBoot?: string) {
   await page.clock.install({ time: new Date('2026-11-11T10:00:00') });
+  // Segue la fixture `poweredToday`, qualunque sia l'ordine degli init script: sovrascrive solo se la chiave c'è.
+  await page.addInitScript(() => {
+    if (localStorage.getItem('fosforo.ultimaAccensione') !== null) localStorage.setItem('fosforo.ultimaAccensione', '2026-11-11');
+  });
   if (lastBoot) await page.addInitScript((d) => localStorage.setItem('fosforo.ultimoBoot', d), lastBoot);
 }

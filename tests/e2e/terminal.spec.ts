@@ -1,6 +1,7 @@
 // Terminale vivo (livello 1): comandi, link cliccabili, indirizzi, completamento, cronologia.
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 

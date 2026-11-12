@@ -1,6 +1,7 @@
 // Aspetto CRT: confronti visivi. Le baseline (approvate da Giacomo) sono in look.spec.ts-snapshots/
 // e valgono solo nel container di Playwright; fuori da lì il test gira solo con PW_VISUAL=1.
-import { devices, expect, test, type Page } from '@playwright/test';
+import { devices, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.skip(!process.env.PW_VISUAL, 'confronti visivi solo con PW_VISUAL=1');
 

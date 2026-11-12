@@ -1,5 +1,6 @@
 // Spegnimento: pulsante, comando shutdown, collasso, ritorno a / e riaccensione.
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { FIRST_ROM, output, powerButton, prompt, romLines, SECOND_ROM, today, WELCOME } from './helpers';
 
 test.use({ viewport: { width: 1280, height: 800 } });

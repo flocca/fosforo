@@ -1,5 +1,5 @@
 // Monitor CRT: fosfori dallo storage, struttura del monitor, niente scorrimento orizzontale.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('i fosfori salvati si applicano prima del disegno', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('fosforo.fosfori', 'ambra'));

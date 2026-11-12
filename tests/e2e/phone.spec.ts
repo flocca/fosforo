@@ -1,5 +1,6 @@
 // Telefono: tocchi, comandi rapidi, tastiera solo su richiesta, nessuno scroll orizzontale.
-import { devices, expect, test, type Page } from '@playwright/test';
+import { devices, type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const { defaultBrowserType: _b, ...iphone } = devices['iPhone 13'];
 test.use(iphone);

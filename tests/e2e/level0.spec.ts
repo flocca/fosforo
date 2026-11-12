@@ -1,5 +1,5 @@
 // Livello 0: HTML statico senza JavaScript, come lo vedono crawler e visitatori senza JS.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.use({ javaScriptEnabled: false });
 
