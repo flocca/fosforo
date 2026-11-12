@@ -47,11 +47,26 @@ const label = (site.boot.rom[0]?.text ?? site.host).split(/\s{2,}/)[0].trim().to
     <meta name="twitter:card" content="summary_large_image" />
     <script is:inline>
       // Prima del primo disegno: i fosfori scelti dal visitatore (stessa chiave e valori di
-      // src/client/prefs.ts; senza storage: verde) e, con JavaScript, la home parte spenta
-      // (il client sostituisce power-pending con .screen.is-off; senza client resta il livello 0).
+      // src/client/prefs.ts; senza storage: verde) e, con JavaScript, lo schermo spento: sempre
+      // sulla home, sulla pagina di un elemento se oggi (data locale, come localToday() in
+      // src/lib/dates.ts) il visitatore non ha ancora acceso il monitor (senza storage: spento).
+      // Il client sostituisce power-pending con .screen.is-off; senza client resta il livello 0.
       (function () {
         var d = document.documentElement;
-        if (d.dataset.page === 'home') {
+        var page = d.dataset.page;
+        var off = page === 'home';
+        if (page === 'item') {
+          var last = null;
+          try {
+            last = localStorage.getItem('fosforo.ultimaAccensione');
+          } catch (e) {}
+          var now = new Date();
+          var p = function (n) {
+            return (n < 10 ? '0' : '') + n;
+          };
+          off = last !== now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
+        }
+        if (off) {
           d.classList.add('power-pending');
           // il modulo del client gira prima di `load`: se non è partito, lo schermo si riaccende
           addEventListener('load', function () {

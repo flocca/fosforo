@@ -37,6 +37,9 @@ const REBOOT_OFF_MS = 400;
 // pulsante, INVIO o clic sullo schermo entro questo tempo dall'ultimo scatto non fanno niente:
 // il doppio clic che accende (o spegne) resta uno scatto solo, anche col movimento ridotto
 const SWITCH_GUARD_MS = 400;
+// Nome del pulsante di accensione su un link aperto spento, seguito dal titolo della pagina.
+// Bozza, da approvare da Giacomo.
+const POWER_ON_LINK_LABEL = 'Accendi il monitor: ';
 
 const currentPhosphor = (): Phosphor => {
   const v = document.documentElement.dataset.fosfori as Phosphor;
@@ -142,6 +145,9 @@ async function main() {
 
   const { root, site } = index;
   const page = document.body.dataset.page ?? 'item';
+  // Il livello 0 della pagina di un elemento, com'era prima del terminale: lo schermo lo
+  // sposta nel suo output, qui ne resta una copia per l'accensione da link.
+  let level0: Node[] = page === 'item' ? [...pre.childNodes].map((n) => n.cloneNode(true)) : [];
   // La pagina di un elemento tiene il livello 0 finché il gemello JSON non è arrivato:
   // senza rete resta il contenuto statico, con il prompt sotto.
   const screen = createScreen(pre, { keep: page !== 'home' });
@@ -187,6 +193,11 @@ async function main() {
   let booting: { skip(): void; cancel(): void } | null = null;
   // ultimo scatto dell'interruttore, acceso o spento
   let switchedAt = -Infinity;
+  // Link aperto spento: il percorso da mostrare dopo l'accensione (null sulla home e dopo
+  // ogni spegnimento), il nome del pulsante e il gemello JSON scaricato mentre è spento.
+  let linkPath: string | null = null;
+  let linkName = '';
+  let linkTwin: Promise<Block[] | null> = Promise.resolve(null);
   const justSwitched = () => performance.now() - switchedAt < SWITCH_GUARD_MS;
 
   // Comandi rapidi del telefono: visibili solo a schermo acceso e con il tocco.
@@ -210,11 +221,12 @@ async function main() {
     led?.classList.toggle('is-on', on);
     html.classList.remove('power-pending');
   };
-  // Il pulsante segue lo stato: "Accendi" a monitor spento (e mentre si spegne), "Spegni" acceso.
+  // Il pulsante segue lo stato: "Accendi" a monitor spento (e mentre si spegne), "Spegni" acceso;
+  // su un link aperto spento il nome dice anche quale pagina si accende.
   const setPower = (next: Power) => {
     power = next;
     if (!powerButton) return;
-    const name = next === 'off' || next === 'collapsing' ? 'Accendi' : 'Spegni';
+    const name = next === 'off' && linkPath !== null ? linkName : next === 'off' || next === 'collapsing' ? 'Accendi' : 'Spegni';
     powerButton.disabled = next === 'warming' || next === 'collapsing';
     powerButton.setAttribute('aria-label', name);
     powerButton.title = name;
@@ -424,6 +436,7 @@ async function main() {
     screen.clear();
     term.setCwd('');
     router.navigate('', 'push');
+    linkPath = null;
     setScreenOn(false);
     setPower('off');
   }
@@ -487,33 +500,63 @@ async function main() {
     window.history.replaceState({ path: currentPath() }, '');
   }
 
+  // L'elemento di un link profondo e il suo gemello JSON, con il font pronto per andare a capo.
+  // Il gemello è null se l'albero non conosce l'elemento, se è un link o se non arriva.
+  async function itemTwin(path: string, aliasTarget: string | undefined) {
+    const node = await nodeFor(path, aliasTarget);
+    const shown = node?.type === 'alias' ? node.target : node?.path;
+    if (node?.type === 'link') return { node, shown, twin: null };
+    // un alias che punta ancora altrove (indice non aggiornato) mostra la pagina statica
+    const agrees = !(node?.type === 'alias' && aliasTarget !== undefined && shown !== aliasTarget);
+    const twin = node && shown !== undefined && agrees ? await term.fetchBlocks(shown) : null;
+    if (twin) {
+      // si va a capo con le colonne di Fira Mono: se il font non è ancora arrivato si aspetta
+      // (al massimo un secondo), altrimenti il testo andrebbe a capo con le misure del font di riserva
+      // (`fonts.ready` non basta: prima del primo disegno il font non è ancora richiesto)
+      await Promise.race([document.fonts?.load('400 1em "Fira Mono"', 'M').catch(() => {}), sleep(1000)]);
+      screen.remeasure();
+    }
+    return { node, shown, twin };
+  }
+
   // Link profondo: la pagina statica esiste, quindi l'elemento c'è. Se l'albero non lo
   // conosce o il gemello JSON non arriva, resta il livello 0 e sotto compare il prompt.
   async function startItem() {
     const path = document.body.dataset.path ?? currentPath();
-    const aliasTarget = document.body.dataset.aliasTarget;
-    const node = await nodeFor(path, aliasTarget);
+    const { node, shown, twin } = await itemTwin(path, document.body.dataset.aliasTarget);
     if (node?.type === 'link') return showPath(path);
-    const shown = node?.type === 'alias' ? node.target : node?.path;
-    // un alias che punta ancora altrove (indice non aggiornato) mostra la pagina statica
-    const agrees = !(node?.type === 'alias' && aliasTarget !== undefined && shown !== aliasTarget);
-    const twin = node && shown !== undefined && agrees ? await term.fetchBlocks(shown) : null;
     if (!twin) {
       if (node && node.type !== 'dir' && shown !== undefined) term.setCwd(parentOf(shown));
       else if (node?.type === 'dir') term.setCwd(node.path);
       window.history.replaceState({ path: currentPath() }, '');
       return;
     }
-    // si va a capo con le colonne di Fira Mono: se il font non è ancora arrivato si aspetta
-    // (al massimo un secondo), altrimenti il testo andrebbe a capo con le misure del font di riserva
-    // (`fonts.ready` non basta: prima del primo disegno il font non è ancora richiesto)
-    await Promise.race([document.fonts?.load('400 1em "Fira Mono"', 'M').catch(() => {}), sleep(1000)]);
-    screen.remeasure();
     await showPath(path);
   }
 
-  const start = () => {
+  // Link profondo la prima volta del giorno: monitor spento come la home, ma il livello 0 resta
+  // nella pagina sotto lo schermo spento. Il gemello si scarica subito, senza stampare: lo
+  // mostra l'accensione. Non aspetta il gemello, così l'interruttore risponde da subito.
+  function startItemOff() {
+    const path = document.body.dataset.path ?? currentPath();
+    linkPath = path;
+    linkName = `${POWER_ON_LINK_LABEL}${findByPath(root, path)?.title ?? document.title}`;
+    screen.showPrompt(false);
+    setScreenOn(false);
+    setPower('off');
+    window.history.replaceState({ path: currentPath() }, '');
+    linkTwin = itemTwin(path, document.body.dataset.aliasTarget).then(
+      (r) => r.twin,
+      () => null,
+    );
+  }
+
+  const start = async () => {
     if (page === 'home') return router.replay(startHome);
+    if (page === 'item') {
+      const kind = decideStart({ page, lastBoot: prefs.getLastBoot(), lastPowerOn: prefs.getLastPowerOn(), today: localToday(), reducedMotion: reducedMotion() });
+      if (kind === 'power-link') return startItemOff();
+    }
     setScreenOn(true);
     setPower('on');
     if (page === '404') return startNotFound();

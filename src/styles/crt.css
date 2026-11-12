@@ -5,7 +5,10 @@
  * - .monitor, .screen (sovrapposizioni: scanline, vignettatura, sfarfallio)
  * - .screen.is-off (spento), .screen.is-collapsing (collasso dello spegnimento),
  *   .screen.is-warming (alone del tubo che si scalda); prima del client
- *   html.power-pending (messo dallo script in testa sulla home) vale come .screen.is-off
+ *   html.power-pending (messo dallo script in testa sulla home e, la prima volta del giorno,
+ *   sulla pagina di un elemento) vale come .screen.is-off. Spento, la home nasconde main;
+ *   la pagina di un elemento lo lascia nella pagina e nell'albero di accessibilità, solo
+ *   ritagliato alla vista (stesso aspetto della home spenta)
  * - .term-prompt[hidden] (prompt nascosto durante il boot), .term-prompt.is-busy (comando al lavoro: senza etichetta)
  * - .screen-beam (riga e punto del collasso), .screen-glow (alone dell'accensione): decorativi,
  *   aria-hidden, invisibili fuori dalle loro animazioni
@@ -427,9 +430,17 @@ body {
   background: radial-gradient(ellipse at 45% 40%, #1a1d1b 0%, #0e100f 60%, #070807 100%);
 }
 
-.screen.is-off > main,
-:root.power-pending .screen > main {
+:root[data-page='home'] .screen.is-off > main,
+:root[data-page='home'].power-pending .screen > main {
   visibility: hidden;
+}
+
+/* fuori dalla home il contenuto resta leggibile da crawler e lettori di schermo: ritagliato
+ * a zero non si disegna, e si vede lo schermo spento con la scritta, come sulla home.
+ * Non opacity: 0, che su Chromium cambia di un soffio il disegno di scanline e vetro. */
+:root:not([data-page='home']) .screen.is-off > main,
+:root:not([data-page='home']).power-pending .screen > main {
+  clip: rect(0 0 0 0);
 }
 
 .screen.is-off::after,
