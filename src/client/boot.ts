@@ -93,14 +93,20 @@ export function runBoot(opts: {
   return { done, skip: finish, cancel };
 }
 
-// La parola "help" del benvenuto si può cliccare; senza "help" il testo resta semplice.
+// Le parole "help" e "ls" del benvenuto si possono cliccare (solo la prima volta che
+// compaiono, e solo come parole intere); senza di loro il testo resta semplice.
 export function welcomeSpans(text: string): Span[] {
-  const m = /\bhelp\b/.exec(text);
-  if (!m) return [{ text }];
   const spans: Span[] = [];
-  if (m.index) spans.push({ text: text.slice(0, m.index) });
-  spans.push({ text: 'help', cmd: 'help' });
-  const rest = text.slice(m.index + 4);
-  if (rest) spans.push({ text: rest });
-  return spans;
+  const seen = new Set<string>();
+  let last = 0;
+  for (const m of text.matchAll(/\b(help|ls)\b/g)) {
+    const word = m[1];
+    if (seen.has(word)) continue;
+    seen.add(word);
+    if (m.index > last) spans.push({ text: text.slice(last, m.index) });
+    spans.push({ text: word, cmd: word });
+    last = m.index + word.length;
+  }
+  if (last < text.length) spans.push({ text: text.slice(last) });
+  return spans.length ? spans : [{ text }];
 }

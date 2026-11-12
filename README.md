@@ -131,7 +131,7 @@ boot:
 
 `description` è facoltativo: è il testo dell'anteprima social della home (tagliato a 160 caratteri); se manca, è "`<host>`: canzoni, letture e pagine, in forma di terminale.".
 
-Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot, `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
+Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot (le parole help e ls del benvenuto si possono cliccare), `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
 
 ## Suono
 
