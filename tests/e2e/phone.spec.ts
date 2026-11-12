@@ -79,8 +79,8 @@ test.describe('320 px', () => {
   test.use({ viewport: { width: 320, height: 640 } });
 
   test('post con URL lungo: nessuno scroll orizzontale, URL spezzato', async ({ page }) => {
-    await page.goto('/post/2026-01-05-prova');
-    await expect(output(page)).toContainText('$ cat /post/2026-01-05-prova');
+    await page.goto('/messaggi/2026-01-05-prova');
+    await expect(output(page)).toContainText('$ cat /messaggi/2026-01-05-prova');
     expect(await noHScroll(page)).toBe(true);
     const termOverflow = await page.locator('.term').evaluate((el) => el.scrollWidth <= el.clientWidth);
     expect(termOverflow).toBe(true);

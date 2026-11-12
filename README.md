@@ -34,7 +34,7 @@ La cartella dei contenuti coincide con il terminale e con gli URL, senza slash f
 
 - `canzoni/2026-11-10.md` diventa `/canzoni/2026-11-10`
 - `lettura/<slug>.json` diventa `/lettura/<slug>`
-- `post/<data>-<slug>/index.md` diventa `/post/<data>-<slug>`
+- `messaggi/<data>-<slug>/index.md` diventa `/messaggi/<data>-<slug>`
 - `<nome>.md` nella radice diventa `/<nome>`
 
 Ogni pagina ha un gemello JSON in `/_fs/` (`/_fs/index.json` per l'albero, `/_fs/<percorso>.json` per i nodi, `/_fs/root.json` per la radice) che il terminale legge per navigare. Le immagini dei post e i fotogrammi delle canzoni sono in `/_img/`, le immagini per le anteprime social in `/og/`. Un percorso inesistente mostra la pagina "non trovato" del terminale, con HTTP 404 e un link per tornare indietro (`lettura/` per `/lettura/*`, la home altrove).
@@ -92,7 +92,7 @@ Una nota breve sulla canzone di oggi (opzionale).
 
 ### Post
 
-`post/<data>-<slug>/index.md`, con le immagini accanto al file e referenziate con percorso relativo (`![una foto](foto.jpg)`):
+`messaggi/<data>-<slug>/index.md`, con le immagini accanto al file e referenziate con percorso relativo (`![una foto](foto.jpg)`):
 
 ```
 ---

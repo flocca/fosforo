@@ -24,7 +24,7 @@ export const root: FsNode = {
       type: 'dir',
       children: [{ name: 'termination-shock', path: 'lettura/termination-shock', type: 'file', title: 'Termination Shock' }],
     },
-    { name: 'post', path: 'post', type: 'dir', children: [] },
+    { name: 'messaggi', path: 'messaggi', type: 'dir', children: [] },
     { name: 'chi-sono', path: 'chi-sono', type: 'file', title: 'Chi sono' },
     { name: 'owlcavelabs', path: 'owlcavelabs', type: 'link', title: 'Owl Cave Labs', target: 'https://owlcavelabs.it' },
   ],

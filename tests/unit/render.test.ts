@@ -11,7 +11,7 @@ const store = buildStoreFrom({
   books: [read('lettura/termination-shock.json'), read('lettura/il-nome-della-rosa.json')].map((d) => ({ slug: d.slug, data: d })),
   bookNotes: [{ slug: 'termination-shock', body: 'Bello **davvero**.' }],
   goal: read('lettura/obiettivo.json'),
-  posts: [{ slug: '2026-01-05-prova', body: readFileSync(new URL('../../example-content/post/2026-01-05-prova/index.md', import.meta.url), 'utf8').replace(/^---[\s\S]*?---\n/, ''), data: { title: 'Un post di prova', date: '2026-01-05', draft: false } }],
+  posts: [{ slug: '2026-01-05-prova', body: readFileSync(new URL('../../example-content/messaggi/2026-01-05-prova/index.md', import.meta.url), 'utf8').replace(/^---[\s\S]*?---\n/, ''), data: { title: 'Un post di prova', date: '2026-01-05', draft: false } }],
   pages: [{ slug: 'chi-sono', body: '# Ciao\n\ntesto', data: { title: 'Chi sono' } }],
   site: { host: 'h', user: 'u', links: [], boot: { rom: [], welcome: 'w', welcomeTouch: 'wt' } },
 });
@@ -102,7 +102,7 @@ describe('renderPath', () => {
     expect(l.some((x) => x.startsWith('Libri finiti'))).toBe(false);
   });
   it('post', () => {
-    const b = renderPath('post/2026-01-05-prova', store)!;
+    const b = renderPath('messaggi/2026-01-05-prova', store)!;
     expect(txt(b[0])).toBe('Un post di prova');
     expect((b[0] as any).spans[0].style).toBe('bold');
     expect(txt(b[1])).toBe('05/01/2026');
@@ -110,7 +110,7 @@ describe('renderPath', () => {
     expect(link.cmd).toBe('cat /chi-sono');
     expect(link.href).toBeUndefined();
     const img = b.find((x) => x.type === 'image') as any;
-    expect(img.src).toMatch(/\/_img\/post\/2026-01-05-prova\/foto\.png$/);
+    expect(img.src).toMatch(/\/_img\/messaggi\/2026-01-05-prova\/foto\.png$/);
     expect(img).toMatchObject({ alt: 'una foto', width: 640, height: 360 });
   });
   it('pagina', () => {
@@ -121,10 +121,10 @@ describe('renderPath', () => {
 });
 
 describe('markdownToBlocks', () => {
-  const md = (s: string, sizes?: any) => markdownToBlocks(s, { imageBase: '/_img/post/x', sizes });
+  const md = (s: string, sizes?: any) => markdownToBlocks(s, { imageBase: '/_img/messaggi/x', sizes });
   it('dimensioni dalla mappa sizes', () => {
     const b = md('![a](dir/foto.jpg)', { foto: { width: 640, height: 480 } }) as any[];
-    expect(b[0]).toMatchObject({ src: '/_img/post/x/foto.png', width: 640, height: 480 });
+    expect(b[0]).toMatchObject({ src: '/_img/messaggi/x/foto.png', width: 640, height: 480 });
   });
   it('titoli, elenchi, citazioni, enfasi, codice', () => {
     const b = md('## Titolo qui\n\n- uno\n- due\n\n1. a\n2. b\n\n> citazione\n\n*e* **g** `c`');
@@ -157,7 +157,7 @@ describe('markdownToBlocks', () => {
 describe('immagini dei post', () => {
   it('images arriva alle dimensioni del blocco immagine', () => {
     const s = buildStoreFrom({ songs: [], books: [], pages: [], site: store.site, posts: [{ slug: 'p', body: '![a](foto.jpg)', data: { title: 'P', date: '2026-01-01', draft: false }, images: { foto: { width: 640, height: 480 } } }] });
-    const img = renderPath('post/p', s)!.find((x) => x.type === 'image') as any;
+    const img = renderPath('messaggi/p', s)!.find((x) => x.type === 'image') as any;
     expect(img).toMatchObject({ width: 640, height: 480 });
   });
 });
