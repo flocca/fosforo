@@ -114,6 +114,7 @@ Le immagini diventano a scala di grigi a 640 px e passano attraverso il fosforo.
 ```
 host: example.com
 user: guest
+description: "Canzoni, letture e pagine."   # facoltativo
 links:
   - name: owlcavelabs      # kebab-case, è il nome da scrivere nel terminale
     title: Owl Cave Labs
@@ -127,6 +128,8 @@ boot:
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
   welcomeStatic: "Benvenuto. Clicca un nome."   # facoltativo
 ```
+
+`description` è facoltativo: è il testo dell'anteprima social della home (tagliato a 160 caratteri); se manca, è "`<host>`: canzoni, letture e pagine, in forma di terminale.".
 
 Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot, `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
 

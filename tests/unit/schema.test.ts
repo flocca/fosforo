@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookSchema, goalSchema, songSchema } from '../../src/lib/schema';
+import { bookSchema, goalSchema, siteSchema, songSchema } from '../../src/lib/schema';
 import { assertMarkdownBody } from '../../src/lib/text';
 
 const validSong = {
@@ -104,5 +104,17 @@ describe('assertMarkdownBody', () => {
   });
   it('accetta markdown normale', () => {
     expect(() => assertMarkdownBody('un [link](https://x)', 'a.md')).not.toThrow();
+  });
+});
+
+describe('siteSchema', () => {
+  const validSite = { host: 'h', user: 'u', links: [], boot: { rom: [], welcome: 'help', welcomeTouch: 'help' } };
+
+  it('accetta una description', () => {
+    expect(siteSchema.parse({ ...validSite, description: 'Terminale ricevente.' }).description).toBe('Terminale ricevente.');
+  });
+
+  it('rifiuta entità HTML nella description', () => {
+    expect(() => siteSchema.parse({ ...validSite, description: 'a &amp; b' })).toThrow();
   });
 });

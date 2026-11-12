@@ -77,6 +77,7 @@ export const siteSchema = z
   .object({
     host: z.string().min(1),
     user: z.string().min(1),
+    description: plainText.optional(),
     links: z.array(z.object({ name: kebab, title: plainText, url: z.url() }).strict()),
     boot: z
       .object({
