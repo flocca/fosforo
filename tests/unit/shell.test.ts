@@ -25,6 +25,16 @@ describe('shell', () => {
     expect(t.text()).toEqual(['chi-sono']);
   });
 
+  it('ls muove il disco, su una cartella e su un file', async () => {
+    expect((await run('ls')).seeks).toEqual([2]);
+    expect((await run('ls canzoni')).seeks).toEqual([2]);
+    expect((await run('ls chi-sono')).seeks).toEqual([2]);
+  });
+
+  it('ls di un percorso inesistente non muove il disco', async () => {
+    expect((await run('ls nope')).seeks).toEqual([]);
+  });
+
   it('cd canzoni cambia cartella e indirizzo', async () => {
     const t = await run('cd canzoni');
     expect(t.cwd).toBe('canzoni');

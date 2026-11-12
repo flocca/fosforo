@@ -63,12 +63,16 @@ export function createShell(root: FsNode, term: Terminal) {
       const node = arg ? resolvePath(root, term.cwd, arg) : findByPath(root, term.cwd);
       if (!node) return notFound('ls', arg);
       if (node.type !== 'dir') {
+        term.diskSeek(2);
         term.print([line(t(node.name))]);
         return true;
       }
       // La forma di una cartella è quella del suo gemello JSON (`lettura/` ha il riepilogo
       // delle letture); senza rete basta l'elenco dell'albero.
-      term.print((await term.fetchBlocks(node.path)) ?? listing(node));
+      const blocks = (await term.fetchBlocks(node.path)) ?? listing(node);
+      // il disco legge la cartella, come per `cat` ma più breve
+      term.diskSeek(2);
+      term.print(blocks);
       return true;
     },
 

@@ -23,8 +23,12 @@ export type SiteAudio = {
   spinUp(): void;
   /** `n` movimenti della testina del floppy; non fa niente prima dell'accensione. */
   seek(n: number): void;
-  /** Un tasto della cornice (suono, fosfori): pressione e rilascio. */
+  /** Un tasto della cornice (suono, fosfori): pressione e rilascio insieme (Invio, clic senza pressione). */
   press(): void;
+  /** Il tasto della cornice che scende: mouse, dito o barra spaziatrice premuti. */
+  keyDown(): void;
+  /** Il tasto della cornice che torna su. */
+  keyUp(): void;
   setMuted(m: boolean): void;
   suspend(): void;
   resume(): void;
@@ -304,6 +308,23 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     });
   }
 
+  // --- tasti della cornice ---
+  // L'istante del prossimo pezzo di un tasto, o null se non deve suonare. A contesto
+  // sospeso (suono appena riacceso) il tasto suona alla ripresa; se lì c'è già un tasto
+  // in attesa, niente raffica alla ripresa.
+  function keyAt(): number | null {
+    if (!ctx || muted || !mech) return null;
+    if (ctx.state !== 'running' && quietAt > ctx.currentTime) return null;
+    return now();
+  }
+
+  // lo spegnimento del suono aspetta la fine dell'ultimo pezzo
+  function key(piece: number, at: number, gain: number) {
+    play(mech!, piece, at, gain);
+    const seg = mech!.segs[piece];
+    quietAt = Math.max(quietAt, at + (seg.end - seg.start));
+  }
+
   return {
     get started() {
       return ctx !== null;
@@ -350,15 +371,20 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     },
 
     press() {
-      // a contesto sospeso (suono appena riacceso) il tasto suona alla ripresa
-      if (!ctx || muted || !mech) return;
-      // contesto ancora fermo: un tasto solo in attesa, non una raffica alla ripresa
-      if (ctx.state !== 'running' && quietAt > ctx.currentTime) return;
-      const t = now();
-      play(mech, 2, t, MECH.gain.press);
-      play(mech, 3, t + MECH.releaseAfter, MECH.gain.release);
-      const rel = mech.segs[3];
-      quietAt = t + MECH.releaseAfter + (rel.end - rel.start);
+      const t = keyAt();
+      if (t === null) return;
+      key(2, t, MECH.gain.press);
+      key(3, t + MECH.releaseAfter, MECH.gain.release);
+    },
+
+    keyDown() {
+      const t = keyAt();
+      if (t !== null) key(2, t, MECH.gain.press);
+    },
+
+    keyUp() {
+      const t = keyAt();
+      if (t !== null) key(3, t, MECH.gain.release);
     },
 
     setMuted(m) {

@@ -132,7 +132,7 @@ Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel test
 
 ## Suono
 
-Il suono parte solo dopo un gesto (l'interruttore, o il primo tocco su un link profondo) e si spegne con il tasto o con il comando `suono`. È in parte sintetizzato (ronzio del trasformatore, tubo che si accende, ventola, risonanza del mobile) e in parte registrato: l'interruttore, i tasti della cornice e il floppy. Le registrazioni stanno in `src/client/sound/registrazioni/` e si scaricano dopo il gesto; i valori scelti sono in `src/client/sound/preset.ts`.
+Il suono parte solo dopo un gesto (l'interruttore, o il primo tocco su un link profondo) e si spegne con il tasto o con il comando `suono`. È in parte sintetizzato (ronzio del trasformatore, tubo che si accende, ventola, risonanza del mobile) e in parte registrato: l'interruttore, i tasti della cornice e il floppy. Le registrazioni stanno in `src/client/sound/registrazioni/` e si scaricano dopo il gesto; i valori scelti sono in `src/client/sound/preset.ts`. I tasti della cornice suonano come si muovono: lo scatto quando scendono (mouse, dito o barra spaziatrice) e il rilascio quando si lasciano; con Invio i due scatti arrivano insieme. Il floppy lavora con `cat` e `ls` e durante il boot.
 
 In sviluppo, `npm run dev` e poi `/_suoni` apre il banco dei suoni: si ascoltano e si regolano le voci, si confrontano con registrazioni di terzi, si salvano le configurazioni in `dev/scelte/`. Il banco non finisce mai nella build. `dev/scarica-suoni.sh` scarica le registrazioni di confronto in `.cache/suoni/`; `dev/ritaglia-suoni.sh` ne taglia i pezzi usati dal sito.
 

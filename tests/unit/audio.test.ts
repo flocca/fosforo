@@ -288,6 +288,46 @@ describe('createAudio', () => {
     expect(played().length).toBe(muted);
   });
 
+  it('keyDown e keyUp: la pressione e il rilascio del tasto, ognuno quando arriva', async () => {
+    const { audio, contexts, played } = setup();
+    audio.keyDown();
+    audio.keyUp();
+    expect(contexts).toHaveLength(0);
+    audio.powerOn();
+    await flush();
+    const keys = () =>
+      played()
+        .filter(([f]) => f === 'meccanica')
+        .map(([, at]) => at);
+    const before = keys().length;
+    audio.keyDown();
+    expect(keys().slice(before)).toHaveLength(1);
+    expect(near(keys()[before], MECH.starts[2])).toBe(true);
+    audio.keyUp();
+    expect(keys().slice(before)).toHaveLength(2);
+    expect(near(keys()[before + 1], MECH.starts[3])).toBe(true);
+    audio.setMuted(true);
+    const muted = played().length;
+    audio.keyDown();
+    audio.keyUp();
+    expect(played().length).toBe(muted);
+  });
+
+  it('spegnendo il suono subito dopo il rilascio, il rilascio finisce di suonare', async () => {
+    const { audio, contexts, master } = setup();
+    audio.powerOn();
+    await flush();
+    const c = contexts[0];
+    audio.keyDown();
+    audio.keyUp();
+    const g = c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam };
+    const spy = vi.spyOn(g.gain, 'setValueAtTime');
+    audio.setMuted(true);
+    // la rampa verso 0 parte dopo la fine del rilascio (0,12 s nel file finto)
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBeGreaterThanOrEqual(c.currentTime + 0.12);
+    expect(master()).toBe(0);
+  });
+
   it('seek: con il floppy caricato muove la testina con pezzi del floppy', async () => {
     const { audio, played } = setup();
     audio.powerOn();

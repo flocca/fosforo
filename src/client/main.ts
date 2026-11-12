@@ -5,6 +5,7 @@ import { findByPath, type FsNode } from '../lib/fs-tree';
 import { promptCommand } from '../lib/level0';
 import type { SiteConfig } from '../lib/schema';
 import { createAudio } from './audio';
+import { bezelKey } from './bezel-key';
 import { decideStart, runBoot, welcomeSpans } from './boot';
 import { complete } from './complete';
 import { createHistory } from './history';
@@ -69,12 +70,16 @@ function initSoundButton() {
   if (!button) return;
   showSound(audio.muted);
   button.disabled = false;
-  // il clic del tasto si sente: prima di spegnere il suono, o appena riacceso
-  button.addEventListener('click', () => {
+  // Spegnendo, pressione e rilascio si sentono prima che il suono vada via. Riaccendendo,
+  // il tasto è sceso a suono spento: dopo si sente il rilascio (o tutto il tasto, con Invio).
+  bezelKey(button, audio, (held) => {
     const muting = !audio.muted;
-    if (muting) audio.press();
+    if (muting && !held) audio.press();
     applySound(muting);
-    if (!muting) audio.press();
+    if (!muting) {
+      if (held) audio.keyUp();
+      else audio.press();
+    }
   });
 }
 
@@ -92,8 +97,8 @@ function initPhosphorButton() {
   if (!button) return;
   button.title = `Fosfori: ${currentPhosphor()}`;
   button.disabled = false;
-  button.addEventListener('click', () => {
-    audio.press();
+  bezelKey(button, audio, (held) => {
+    if (!held) audio.press();
     const i = PHOSPHORS.indexOf(currentPhosphor());
     applyPhosphor(PHOSPHORS[(i + 1) % PHOSPHORS.length]);
   });
