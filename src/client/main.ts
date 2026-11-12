@@ -28,7 +28,7 @@ type SiteIndex = {
 const audio = createAudio();
 // Link già acceso (il visitatore ha acceso il monitor oggi): l'audio aspetta il tasto del
 // suono (o il comando `suono`), nessun altro gesto lo fa partire. Finché aspetta, spia e
-// tasto si mostrano spenti. Lo spegnimento e l'accensione chiudono l'attesa.
+// tasto si mostrano spenti. Lo spegnimento chiude l'attesa.
 let soundWaits = false;
 
 const parentOf = (path: string) => path.split('/').slice(0, -1).join('/');
@@ -94,8 +94,9 @@ function applySound(muted: boolean) {
   showSound();
 }
 
-// Spegnimento e accensione (interruttore, o Indietro a monitor spento) chiudono l'attesa:
-// l'audio parte con l'accensione, e spia e tasto tornano a mostrare la preferenza.
+// Lo spegnimento chiude l'attesa: a monitor spento spia e tasto mostrano la preferenza, come
+// sulla home, e l'accensione che segue (interruttore, o Indietro) fa partire l'audio da sé.
+// Il monitor è spento solo dopo uno spegnimento o su un link aperto spento, che non aspetta.
 function stopWaitingForSound() {
   soundWaits = false;
   showSound();
@@ -213,7 +214,6 @@ async function main() {
       if (power === 'off') {
         // a monitor spento / resta spento; un elemento si riaccende come un link profondo
         if (path === '') return;
-        stopWaitingForSound();
         audio.spinUp();
         setScreenOn(true);
         setPower('on');
@@ -483,7 +483,6 @@ async function main() {
     if (power !== 'off' || justSwitched()) return;
     setPower('warming');
     switchedAt = performance.now();
-    stopWaitingForSound();
     audio.powerOn();
     if (linkPath !== null) {
       const link = linkPath;

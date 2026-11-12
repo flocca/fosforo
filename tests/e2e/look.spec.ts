@@ -28,6 +28,34 @@ async function settle(page: Page) {
   await page.waitForFunction(() => [...document.images].every((i) => i.complete));
 }
 
+// Le pagine degli elementi qui si aprono già accese (fixture `poweredToday`): l'audio aspetta
+// il tasto del suono e spia e icona si mostrano spente. Le baseline approvate hanno il suono
+// acceso: si preme il tasto da tastiera (niente hover né tasto abbassato del puntatore), poi
+// si rimettono il fuoco e lo scorrimento com'erano.
+async function startSound(page: Page) {
+  const button = page.locator('.sound-button');
+  await expect(button).toBeEnabled();
+  await page.evaluate(() => {
+    const w = window as unknown as { lookFocus: Element | null; lookScroll: [number, number] };
+    w.lookFocus = document.activeElement;
+    w.lookScroll = [scrollX, scrollY];
+    document.querySelector<HTMLButtonElement>('.sound-button')!.focus({ preventScroll: true });
+  });
+  await page.keyboard.press('Enter');
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.sound-led')).toHaveClass(/is-on/);
+  await page.evaluate(() => {
+    const w = window as unknown as { lookFocus: Element | null; lookScroll: [number, number] };
+    const active = document.activeElement as HTMLElement | null;
+    // se intanto il client ha spostato il fuoco (sul prompt) lo si lascia dov'è
+    if (active?.classList.contains('sound-button')) {
+      active.blur();
+      if (w.lookFocus instanceof HTMLElement && w.lookFocus !== document.body) w.lookFocus.focus({ preventScroll: true });
+    }
+    scrollTo(...w.lookScroll);
+  });
+}
+
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -36,6 +64,7 @@ test.describe('desktop', () => {
       await withPhosphor(page, ph);
       await page.goto('/chi-sono');
       await expect(page.locator('html')).toHaveAttribute('data-fosfori', ph);
+      await startSound(page);
       await settle(page);
       await expect(page).toHaveScreenshot(`chi-sono-${ph}.png`, { animations: 'disabled' });
     });
@@ -50,6 +79,7 @@ test.describe('desktop', () => {
     const img = page.locator('.ph-img img');
     await img.scrollIntoViewIfNeeded();
     await expect(img).toHaveJSProperty('complete', true);
+    await startSound(page);
     await settle(page);
     await expect(page).toHaveScreenshot('post-immagine-verde.png', { animations: 'disabled' });
   });
@@ -82,6 +112,7 @@ test.describe('telefono stretto (320 px)', () => {
   test('post con URL lungo', async ({ page }) => {
     await page.goto('/post/2026-01-05-prova');
     await expect(page.locator('#screen .term-out')).toContainText('$ cat /post/2026-01-05-prova');
+    await startSound(page);
     await settle(page);
     await expect(page).toHaveScreenshot('post-telefono-320.png', { animations: 'disabled' });
   });

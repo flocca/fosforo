@@ -133,6 +133,12 @@ test('la 404 fa partire l\'audio al primo gesto', async ({ page }) => {
 
 // Il primo disegno lo decide lo script in testa: senza il client resta quello.
 const ledLit = (page: Page) => page.locator('.sound-led').evaluate((el) => getComputedStyle(el).backgroundImage.includes('gradient'));
+// l'icona del tasto: onde (acceso) o croce (spento), una sola visibile
+const iconShown = (page: Page) =>
+  page.locator('.sound-button').evaluate((b) => {
+    const shown = (sel: string) => getComputedStyle(b.querySelector(sel)!).display !== 'none';
+    return shown('.waves') && !shown('.cross') ? 'acceso' : shown('.cross') && !shown('.waves') ? 'spento' : 'misto';
+  });
 
 test.describe('prima del client', () => {
   test.beforeEach(async ({ page }) => {
@@ -142,19 +148,23 @@ test.describe('prima del client', () => {
   test('link già acceso: la spia del suono è spenta dal primo disegno', async ({ page }) => {
     await page.goto(SONG);
     expect(await ledLit(page)).toBe(false);
+    expect(await iconShown(page)).toBe('spento');
   });
 
   test('preferenza spenta: la spia del suono è spenta dal primo disegno, anche sulla home', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
     await page.goto('/');
     expect(await ledLit(page)).toBe(false);
+    expect(await iconShown(page)).toBe('spento');
   });
 
   test('home e 404 con il suono acceso: la spia è accesa', async ({ page }) => {
     await page.goto('/');
     expect(await ledLit(page)).toBe(true);
+    expect(await iconShown(page)).toBe('acceso');
     await page.goto('/non-esiste');
     expect(await ledLit(page)).toBe(true);
+    expect(await iconShown(page)).toBe('acceso');
   });
 });
 
@@ -165,6 +175,7 @@ test.describe('primo giorno', () => {
     await page.route('**/_astro/*.js', (r) => r.abort());
     await page.goto(SONG);
     expect(await ledLit(page)).toBe(true);
+    expect(await iconShown(page)).toBe('acceso');
   });
 });
 
@@ -172,9 +183,11 @@ test('con il client la spia segue lo stato: il segno dello script in testa non r
   await page.goto(SONG);
   await expect(prompt(page)).toBeFocused();
   await expect(page.locator('html')).not.toHaveClass(/sound-pending/);
+  expect(await iconShown(page)).toBe('spento');
   await soundButton(page).click();
   await expectShownOn(page);
   expect(await ledLit(page)).toBe(true);
+  expect(await iconShown(page)).toBe('acceso');
 });
 
 test.describe('primo giorno con l\'indice in ritardo', () => {
