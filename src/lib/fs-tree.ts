@@ -34,6 +34,18 @@ export function findByPath(root: FsNode, path: string): FsNode | null {
   return node;
 }
 
+// La cartella esistente più vicina a un percorso inesistente, per il "Prova ls" della pagina non trovata:
+// il primo antenato (escluso il percorso stesso) che è una cartella, altrimenti la radice ('').
+// Lo script inline di `404.astro` ripete lo stesso giro: se cambia qui, cambia anche lì.
+export function nearestDir(root: FsNode, path: string): string {
+  const parts = normalizeParts(path);
+  for (let i = parts.length - 1; i > 0; i--) {
+    const p = parts.slice(0, i).join('/');
+    if (findByPath(root, p)?.type === 'dir') return p;
+  }
+  return '';
+}
+
 export function resolvePath(root: FsNode, cwd: string, arg: string): FsNode | null {
   const a = arg.trim();
   if (a === '' || a === '~' || a === '/') return root;

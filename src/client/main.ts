@@ -1,7 +1,7 @@
 // Livello 1: trasforma la pagina statica in un terminale vivo (tastiera e clic).
 import type { Block } from '../lib/blocks';
 import { localToday } from '../lib/dates';
-import { findByPath, type FsNode } from '../lib/fs-tree';
+import { findByPath, nearestDir, type FsNode } from '../lib/fs-tree';
 import { promptCommand } from '../lib/level0';
 import type { SiteConfig } from '../lib/schema';
 import { createAudio } from './audio';
@@ -143,10 +143,6 @@ function initPhosphorButton() {
     applyPhosphor(PHOSPHORS[(i + 1) % PHOSPHORS.length]);
   });
 }
-
-// Il percorso di ritorno di un indirizzo inesistente, come nella pagina 404 statica:
-// `lettura/` sotto /lettura/*, altrimenti la radice.
-const backFor = (path: string) => (path.startsWith('lettura/') ? 'lettura' : '');
 
 async function loadIndex(cache?: RequestCache): Promise<SiteIndex> {
   const res = await fetch('/_fs/index.json', cache ? { cache } : undefined);
@@ -405,7 +401,8 @@ async function main() {
     term.setCwd('');
     await runEcho(promptCommand(path, node?.type === 'dir'));
     if (!node) {
-      const back = backFor(path);
+      // La cartella esistente più vicina, come nella pagina 404 statica.
+      const back = nearestDir(root, path);
       screen.print([{ type: 'line', spans: [{ text: 'Prova ' }, { text: `ls /${back}`, cmd: `cd /${back} && ls` }] }]);
       return;
     }

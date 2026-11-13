@@ -22,13 +22,14 @@ Variabili d'ambiente:
 
 - `CONTENT_DIR`: cartella dei contenuti, assoluta o relativa alla cartella da cui si lancia il comando. Default: `example-content/`.
 - `SITE_URL`: indirizzo pubblico del sito, usato per gli URL assoluti nei tag Open Graph. Default: `https://example.com`.
+- `FOSFORO_STRICT`: con `1` un avviso della zona libera ferma la build (vedi [Formati dei contenuti](#formati-dei-contenuti)). Pensata per le build delle pull request.
 - `FOSFORO_CACHE`: cartella della cache delle miniature YouTube. Default: `.cache/`. È l'unico accesso di rete della build. Se il download di una miniatura fallisce (rete, timeout, errore 5xx, dopo 3 tentativi) la build si ferma di proposito: l'anteprima di una canzone viene messa in cache dai social alla prima visita e non deve mai essere un ripiego, quindi la canzone resta un 404 e la build successiva riprova.
 
 ## Formati dei contenuti
 
 I formati sono un contratto con chi scrive i contenuti (anche programmi esterni, come l'esportatore dei libri): si validano con uno schema e un errore ferma la build. I campi opzionali assenti vanno omessi, mai messi a `null`. I campi di testo rifiutano le entità HTML (`&egrave;`) e i caratteri invisibili (zero-width space). I corpi markdown rifiutano la sintassi Obsidian (`[[`, `![[`, `> [!`): si usa markdown standard.
 
-Ci sono due zone. I formati concordati (canzoni, libri, messaggi, `site.yaml`) e le pagine nella radice sono severi: un errore ferma la build. Le pagine dentro le cartelle (vedi [Pagine](#pagine)) sono libere: un errore non ferma mai la build, lascia una riga `fosforo: avviso: <file>: <motivo>` nel log, e sotto GitHub Actions anche un'annotazione `::warning` che compare sulla PR.
+Ci sono due zone. I formati concordati (canzoni, libri, messaggi, `site.yaml`) sono severi: un errore ferma la build. Le pagine (nella radice, nelle cartelle tipizzate e nelle cartelle dichiarate in `site.yaml`, vedi [Pagine](#pagine)) e i file delle cartelle dichiarate sono la zona libera: un errore non ferma la build, lascia una riga `fosforo: avviso: <file>: <motivo>` nel log, e sotto GitHub Actions anche un'annotazione `::warning` che compare sulla PR. Con `FOSFORO_STRICT=1` (pensato per le build delle pull request) a fine build gli avvisi fermano la build, così chi scrive a mano vede i suoi errori prima del merge mentre i servizi che spingono su `main` non si fermano mai.
 
 ### Percorsi
 
@@ -39,8 +40,9 @@ La cartella dei contenuti coincide con il terminale e con gli URL, senza slash f
 - `messaggi/<data>-<slug>/index.md` diventa `/messaggi/<data>-<slug>`
 - `<nome>.md` nella radice diventa `/<nome>`
 - `canzoni/<nome>.md` e `messaggi/<nome>.md` (pagine nelle cartelle) diventano `/canzoni/<nome>` e `/messaggi/<nome>`
+- `<cartella>/<...>/<nome>.md` in una cartella dichiarata in `site.yaml` (`cartelle`) diventa `/<cartella>/<...>/<nome>`, a ogni profondità
 
-Ogni pagina ha un gemello JSON in `/_fs/` (`/_fs/index.json` per l'albero, `/_fs/<percorso>.json` per i nodi, `/_fs/root.json` per la radice) che il terminale legge per navigare. Le immagini dei post e i fotogrammi delle canzoni sono in `/_img/`, le immagini per le anteprime social in `/og/`. Un percorso inesistente mostra la pagina "non trovato" del terminale, con HTTP 404 e un link per tornare indietro (`lettura/` per `/lettura/*`, la home altrove).
+Ogni pagina ha un gemello JSON in `/_fs/` (`/_fs/index.json` per l'albero, `/_fs/<percorso>.json` per i nodi, `/_fs/root.json` per la radice) che il terminale legge per navigare. Le immagini dei post e i fotogrammi delle canzoni sono in `/_img/`, le immagini per le anteprime social in `/og/`. Un percorso inesistente mostra la pagina "non trovato" del terminale, con HTTP 404 e un link per tornare indietro: `ls` della cartella esistente più vicina (`/documenti/vecchio` porta a `ls /documenti`, `/canzoni/2026-11-10/x` a `ls /canzoni`), la home se non ce n'è.
 
 Nel markdown un link interno diventa un comando del terminale: `[canzoni](/canzoni)` esegue `cd /canzoni && ls` (una cartella), `[chi sono](/chi-sono)` esegue `cat /chi-sono`. I file in `/_fs/` vanno serviti con `Cache-Control: no-cache`: se un link profondo non è nell'indice, il terminale lo riscarica una volta, ma un indice vecchio in cache resta vecchio per tutte le altre pagine.
 
@@ -129,7 +131,7 @@ Un messaggio si apre con il timbro di ricezione e i campi di `reception.message`
 
 ### Pagine
 
-`<nome>.md` nella radice, con frontmatter `title` e `order` (facoltativo, ordina l'elenco). `README.md`, `CLAUDE.md` e `AGENTS.md` sono ignorati.
+`<nome>.md` nella radice, con frontmatter `title` e `order` (facoltativo, ordina l'elenco). `README.md`, `CLAUDE.md`, `AGENTS.md` e i nomi che cominciano con un punto sono ignorati. Le pagine nella radice sono nella zona libera, ma una pagina sbagliata (nome non in kebab-case, frontmatter assente, illeggibile o non valido, sintassi Obsidian) si salta con un avviso e non si mostra mai: un appunto privato dimenticato nella radice non va online. Una pagina con lo stesso nome di un link, di una cartella dichiarata o di un elemento del motore (`canzone-del-giorno`, `canzoni`, `lettura`, `messaggi`, `bin`, `og`) si salta con un avviso.
 
 Le pagine possono stare anche dentro `canzoni/` e `messaggi/`, con lo stesso frontmatter e la stessa resa. In `canzoni/` è una canzone solo il file con il nome a data (`AAAA-MM-GG.md`), ogni altro `.md` è una pagina; in `messaggi/` i messaggi sono sottocartelle, ogni `.md` sciolto è una pagina.
 
@@ -138,6 +140,15 @@ Le pagine possono stare anche dentro `canzoni/` e `messaggi/`, con lo stesso fro
 - Un frontmatter illeggibile, uno che non rispetta lo schema, uno assente o la sintassi Obsidian nel testo non fermano la build: la pagina si mostra senza il blocco del frontmatter, con il nome del file come titolo, e lascia un avviso.
 - `README.md`, `CLAUDE.md`, `AGENTS.md` e i nomi che cominciano con un punto sono ignorati; gli altri file sciolti (non `.md`) pure.
 - Una cartella con sole pagine esiste lo stesso; `canzone-del-giorno` esiste solo se c'è almeno una canzone.
+
+Le cartelle dichiarate in `site.yaml` (`cartelle`, vedi [site.yaml](#siteyaml)) sono cartelle libere: ogni `.md` al loro interno è una pagina, a ogni profondità, con lo stesso frontmatter e la stessa resa.
+
+- `ls` elenca prima le sottocartelle per nome, poi le pagine per `order` e poi per nome. Le sottocartelle non hanno configurazione né titolo.
+- I nomi di file e sottocartelle seguono la regola delle pagine (kebab-case con una lettera all'inizio): un nome diverso fa saltare il file con un avviso. Un file `x.md` accanto a una cartella `x/`: vince la cartella, la pagina si salta con un avviso.
+- Un frontmatter sbagliato o la sintassi Obsidian si comportano come nelle cartelle tipizzate: la pagina si mostra con il nome del file come titolo e lascia un avviso.
+- Un file che non è `.md` si salta con l'avviso "tipo di file non ancora gestito", finché il motore non gestisce altri tipi.
+- Una cartella (dichiarata o sottocartella) esiste solo se contiene almeno una pagina pubblicabile. Una cartella dichiarata assente o senza pagine non compare e lascia un avviso, senza fermare la build.
+- Le cartelle non dichiarate nella radice (per esempio `docs/`) non si pubblicano mai.
 
 ### site.yaml
 
@@ -149,6 +160,9 @@ links:
   - name: owlcavelabs      # kebab-case, è il nome da scrivere nel terminale
     title: Owl Cave Labs
     url: https://owlcavelabs.it
+cartelle:                  # facoltativo, cartelle libere da pubblicare
+  - name: documenti        # kebab-case con una lettera all'inizio
+    title: Documenti       # facoltativo
 boot:
   rom:
     - text: "MEMORY TEST ....... 65536 BYTES OK"
@@ -169,6 +183,8 @@ reception:                 # facoltativo
 ```
 
 `description` è facoltativo: è il testo dell'anteprima social della home (tagliato a 160 caratteri); se manca, è "`<host>`: canzoni, letture e pagine, in forma di terminale.".
+
+`cartelle` è facoltativo: senza, non c'è nessuna cartella libera. In `ls /` le cartelle stanno dopo `messaggi/`, nell'ordine dell'elenco, prima delle pagine; il `title`, facoltativo, compare attenuato accanto al nome. Il nome non può essere `canzoni`, `lettura`, `messaggi`, `canzone-del-giorno`, `bin`, `og`, né ripetersi, né coincidere con il nome di un link: un errore qui, come ogni errore di `site.yaml`, ferma la build.
 
 Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot (le parole help e ls del benvenuto si possono cliccare), `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
 

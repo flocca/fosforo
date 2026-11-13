@@ -6,6 +6,10 @@
 /canzoni/2026-11-10
 /canzoni/leggimi
 /chi-sono
+/documenti
+/documenti/leggimi
+/documenti/progetti
+/documenti/progetti/fosforo
 /lettura
 /lettura/il-nome-della-rosa
 /lettura/termination-shock

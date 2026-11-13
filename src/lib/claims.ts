@@ -7,6 +7,9 @@ export const POST_GLOB = 'messaggi/*/index.md';
 // Cartelle in cui un `.md` che nessun gestore prende diventa una pagina.
 export const FOLDER_PAGE_DIRS = ['canzoni', 'messaggi'] as const;
 
+// Nomi che una cartella libera non può prendere: gli elementi tipizzati alla radice e le cartelle del motore.
+export const RESERVED_FOLDER_NAMES = ['canzoni', 'lettura', 'messaggi', 'canzone-del-giorno', 'bin', 'og'] as const;
+
 // Nome di una pagina in una cartella: kebab-case con una lettera all'inizio (non si confonde con date e anni).
 export const PAGE_NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 

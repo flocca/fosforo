@@ -1,4 +1,5 @@
 import { z } from 'astro/zod';
+import { PAGE_NAME, RESERVED_FOLDER_NAMES } from './claims';
 import { MESSAGE_PLACEHOLDERS, STAMP_PLACEHOLDERS, placeholdersIn } from './reception';
 import { introText, plainText } from './text';
 
@@ -134,6 +135,17 @@ export const siteSchema = z
     user: z.string().min(1),
     description: plainText.optional(),
     links: z.array(z.object({ name: kebab, title: plainText, url: z.url() }).strict()),
+    // Cartelle libere di primo livello da pubblicare, nell'ordine in cui compaiono in `ls /`.
+    cartelle: z
+      .array(
+        z
+          .object({
+            name: z.string().regex(PAGE_NAME, 'Nome di cartella atteso: kebab-case minuscolo che inizia con una lettera'),
+            title: plainText.optional(),
+          })
+          .strict(),
+      )
+      .optional(),
     boot: z
       .object({
         rom: z.array(
@@ -152,7 +164,19 @@ export const siteSchema = z
       .strict(),
     reception: receptionSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((site, ctx) => {
+    const reserved = new Set<string>(RESERVED_FOLDER_NAMES);
+    const links = new Set(site.links.map((l) => l.name));
+    const seen = new Set<string>();
+    (site.cartelle ?? []).forEach(({ name }, i) => {
+      const path = ['cartelle', i, 'name'];
+      if (reserved.has(name)) ctx.addIssue({ code: 'custom', path, message: `La cartella "${name}" ha un nome riservato al motore` });
+      if (seen.has(name)) ctx.addIssue({ code: 'custom', path, message: `La cartella "${name}" compare due volte` });
+      if (links.has(name)) ctx.addIssue({ code: 'custom', path, message: `La cartella "${name}" ha lo stesso nome di un link` });
+      seen.add(name);
+    });
+  });
 
 export type Song = z.infer<typeof songSchema>;
 export type Book = z.infer<typeof bookSchema>;

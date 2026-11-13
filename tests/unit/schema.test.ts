@@ -198,3 +198,42 @@ describe('postSchema', () => {
     expect(() => postSchema.parse({ ...post, receivedAt: null })).toThrow();
   });
 });
+
+describe('cartelle in site.yaml', () => {
+  const validSite = { host: 'h', user: 'u', links: [], boot: { rom: [], welcome: 'help', welcomeTouch: 'help' } };
+  const withFolders = (cartelle: unknown, links: unknown[] = []) => ({ ...validSite, links, cartelle });
+
+  it('senza la chiave è valido e cartelle resta assente', () => {
+    expect(siteSchema.parse(validSite).cartelle).toBeUndefined();
+  });
+
+  it('accetta cartelle con e senza titolo', () => {
+    const parsed = siteSchema.parse(withFolders([{ name: 'documenti', title: 'Documenti' }, { name: 'giochi' }]));
+    expect(parsed.cartelle).toEqual([{ name: 'documenti', title: 'Documenti' }, { name: 'giochi' }]);
+  });
+
+  it.each(['Documenti', '2026-foto', '_fs'])('rifiuta il nome %s', (name) => {
+    expect(() => siteSchema.parse(withFolders([{ name }]))).toThrow();
+  });
+
+  it.each(['canzoni', 'lettura', 'messaggi', 'canzone-del-giorno', 'bin', 'og'])('rifiuta il nome riservato %s', (name) => {
+    expect(() => siteSchema.parse(withFolders([{ name }]))).toThrow(name);
+  });
+
+  it('rifiuta un doppione', () => {
+    expect(() => siteSchema.parse(withFolders([{ name: 'documenti' }, { name: 'documenti' }]))).toThrow('documenti');
+  });
+
+  it('rifiuta un nome uguale a quello di un link', () => {
+    const links = [{ name: 'owlcavelabs', title: 'Owl', url: 'https://owlcavelabs.com' }];
+    expect(() => siteSchema.parse(withFolders([{ name: 'owlcavelabs' }], links))).toThrow('owlcavelabs');
+  });
+
+  it('rifiuta una chiave sconosciuta', () => {
+    expect(() => siteSchema.parse(withFolders([{ name: 'documenti', order: 1 }]))).toThrow();
+  });
+
+  it('rifiuta entità HTML nel titolo', () => {
+    expect(() => siteSchema.parse(withFolders([{ name: 'documenti', title: 'Perch&egrave;' }]))).toThrow();
+  });
+});

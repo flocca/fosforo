@@ -12,3 +12,10 @@ export function formatWarnings(warnings: Warning[], env: Record<string, string |
     ...(gh ? [`::warning file=${escProp(w.file)}::${escData(w.message)}`] : []),
   ]);
 }
+
+// Con FOSFORO_STRICT=1 (le build delle pull request) un avviso ferma la build: chi scrive vede gli errori prima del merge.
+export function strictError(warnings: Warning[], env: Record<string, string | undefined>): Error | null {
+  if (env.FOSFORO_STRICT !== '1' || !warnings.length) return null;
+  const n = warnings.length;
+  return new Error(`fosforo: ${n} ${n === 1 ? 'avviso' : 'avvisi'} con FOSFORO_STRICT=1: la build si ferma`);
+}

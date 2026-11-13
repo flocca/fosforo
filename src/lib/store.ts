@@ -2,7 +2,7 @@
 import type { Book, Goal, Page, Post, SiteConfig, Song } from './schema';
 import { assertMarkdownBody } from './text';
 import { normalizePath, type FsNode } from './fs-tree';
-import { FOLDER_PAGE_DIRS } from './claims';
+import { FOLDER_PAGE_DIRS, PAGE_NAME, RESERVED_FOLDER_NAMES } from './claims';
 import { parseFolderPage, type FolderPage, type Warning } from './folder-page';
 
 export type Item =
@@ -22,6 +22,7 @@ export type Store = {
 };
 
 type Entry<T> = { slug: string; data: T; body: string };
+export type FolderFile = { file: string; raw?: string };
 type ImageSizes = Record<string, { width: number; height: number }>;
 // Valori veri del messaggio per l'intestazione di ricezione: byte e CRC-32 di index.md, immagini accanto.
 export type Receipt = { bytes: number; crc32: string; attachments: number };
@@ -33,8 +34,9 @@ export type StoreInput = {
   goal?: Goal;
   posts: (Entry<Post> & { images?: ImageSizes; receipt?: Receipt })[];
   pages: Entry<Page>[];
-  // `.md` sciolti nelle cartelle delle pagine, percorso relativo alla cartella dei contenuti
-  folderFiles?: { file: string; raw: string }[];
+  // File letti dal disco, percorso relativo alla cartella dei contenuti: i `.md` della radice, del primo livello
+  // delle cartelle tipizzate e delle cartelle dichiarate (con `raw`), più gli altri file delle cartelle dichiarate (senza).
+  folderFiles?: FolderFile[];
   site: SiteConfig;
 };
 
@@ -50,32 +52,66 @@ const byOrderThenName = (a: { name: string; order?: number }, b: { name: string;
 // Pagine prima dell'archivio di una cartella; le altre vanno dopo.
 const HEAD_PAGES = 4;
 
-// Legge i `.md` sciolti nelle cartelle: pagine per cartella e avvisi. Un nome a cifre in `canzoni/` blocca la build.
-function readFolderPages(files: { file: string; raw: string }[]) {
+// Una cartella libera durante la costruzione: sottocartelle per nome e pagine pubblicabili.
+type FreeDir = { dirs: Map<string, FreeDir>; pages: FolderPage[] };
+const freeDir = (): FreeDir => ({ dirs: new Map(), pages: [] });
+
+// Divide i file letti per zona: radice, cartelle tipizzate, cartelle dichiarate. Un nome a cifre in `canzoni/` blocca la build.
+function readFolderPages(files: FolderFile[], freeNames: string[]) {
   const byDir = new Map<string, FolderPage[]>();
+  const rootPages: FolderPage[] = [];
+  const free = new Map(freeNames.map((n) => [n, freeDir()]));
   const warnings: Warning[] = [];
   for (const { file, raw } of files) {
-    const slash = file.lastIndexOf('/');
-    const dir = file.slice(0, slash);
-    const name = file.slice(slash + 1);
-    if (!(FOLDER_PAGE_DIRS as readonly string[]).includes(dir)) {
+    const parts = file.split('/');
+    const top = parts[0];
+    if (parts.length === 1) {
+      if (raw === undefined) continue; // il lettore manda solo `.md` dalla radice
+      const r = parseFolderPage(file, raw, 'skip');
+      warnings.push(...r.warnings);
+      if (r.page) rootPages.push(r.page);
+    } else if (parts.length === 2 && (FOLDER_PAGE_DIRS as readonly string[]).includes(top)) {
+      if (raw === undefined) continue; // nelle cartelle tipizzate gli altri file restano ignorati
+      if (top === 'canzoni' && /^\d/.test(parts[1])) {
+        throw new Error(`fosforo: ${file}: sembra una canzone ma il nome non è AAAA-MM-GG`);
+      }
+      const r = parseFolderPage(file, raw);
+      warnings.push(...r.warnings);
+      if (r.page) byDir.set(top, [...(byDir.get(top) ?? []), r.page]);
+    } else if (free.has(top)) {
+      if (raw === undefined || !file.endsWith('.md')) {
+        warnings.push({ file, message: 'tipo di file non ancora gestito: saltato' });
+        continue;
+      }
+      const badDir = parts.slice(1, -1).find((d) => !PAGE_NAME.test(d));
+      if (badDir !== undefined) {
+        warnings.push({
+          file,
+          message: `nome di cartella non valido (${badDir}), serve kebab-case con una lettera all'inizio: pagina saltata`,
+        });
+        continue;
+      }
+      const r = parseFolderPage(file, raw);
+      warnings.push(...r.warnings);
+      if (!r.page) continue;
+      let node = free.get(top)!;
+      for (const d of parts.slice(1, -1)) {
+        if (!node.dirs.has(d)) node.dirs.set(d, freeDir());
+        node = node.dirs.get(d)!;
+      }
+      node.pages.push(r.page);
+    } else {
       warnings.push({ file, message: 'non è in una cartella che accetta pagine: saltato' });
-      continue;
     }
-    if (dir === 'canzoni' && /^\d/.test(name)) {
-      throw new Error(`fosforo: ${file}: sembra una canzone ma il nome non è AAAA-MM-GG`);
-    }
-    const r = parseFolderPage(file, raw);
-    warnings.push(...r.warnings);
-    if (r.page) byDir.set(dir, [...(byDir.get(dir) ?? []), r.page]);
   }
-  return { byDir, warnings };
+  return { byDir, rootPages, free, warnings };
 }
 
 export function buildStoreFrom(input: StoreInput): Store {
   const items = new Map<string, Item>();
   const rootChildren: FsNode[] = [];
-  const { byDir, warnings } = readFolderPages(input.folderFiles ?? []);
+  const freeFolders = input.site.cartelle ?? [];
+  const { byDir, rootPages, free, warnings } = readFolderPages(input.folderFiles ?? [], freeFolders.map((c) => c.name));
   // Percorsi che una pagina non può prendere: gli elementi tipizzati e le bozze (anche se non pubblicate).
   const drafts = new Set(input.posts.filter((p) => p.data.draft).map((p) => `messaggi/${p.slug}`));
 
@@ -160,10 +196,58 @@ export function buildStoreFrom(input: StoreInput): Store {
   if (postDir) postDir.children = postChildren;
   else if (postChildren.length) rootChildren.push({ name: 'messaggi', path: 'messaggi', type: 'dir', children: postChildren });
 
-  // Pagine alla radice
-  const pages = [...input.pages].sort((a, b) =>
-    byOrderThenName({ name: a.slug, order: a.data.order }, { name: b.slug, order: b.data.order }),
-  );
+  // Cartelle dichiarate in site.yaml, nell'ordine dell'elenco: compaiono solo se hanno almeno una pagina.
+  const freeNodes = (dir: FreeDir, path: string): FsNode[] => {
+    const subdirs = [...dir.dirs.keys()].sort().map((name): FsNode => {
+      const p = `${path}/${name}`;
+      return { name, path: p, type: 'dir', children: freeNodes(dir.dirs.get(name)!, p) };
+    });
+    const pages = dir.pages
+      .filter((pg) => {
+        if (!dir.dirs.has(pg.name)) return true;
+        warnings.push({ file: `${path}/${pg.name}.md`, message: `c'è anche una cartella ${path}/${pg.name}: pagina saltata` });
+        return false;
+      })
+      .sort((a, b) => byOrderThenName({ name: a.name, order: a.data.order }, { name: b.name, order: b.data.order }))
+      .map((pg): FsNode => {
+        const p = `${path}/${pg.name}`;
+        items.set(p, { kind: 'page', path: p, data: pg.data, body: pg.body });
+        return { name: pg.name, path: p, type: 'file', title: pg.data.title };
+      });
+    return [...subdirs, ...pages];
+  };
+  for (const c of freeFolders) {
+    const dir = free.get(c.name)!;
+    if (!dir.dirs.size && !dir.pages.length) {
+      warnings.push({ file: `${c.name}/`, message: 'cartella dichiarata in site.yaml assente o senza pagine: non compare' });
+      continue;
+    }
+    rootChildren.push({
+      name: c.name,
+      path: c.name,
+      type: 'dir',
+      ...(c.title !== undefined ? { title: c.title } : {}),
+      children: freeNodes(dir, c.name),
+    });
+  }
+
+  // Pagine alla radice: cedono il nome agli elementi tipizzati, alle cartelle dichiarate e ai link.
+  const taken = new Map<string, string>([
+    ...RESERVED_FOLDER_NAMES.map((n): [string, string] => [n, 'un elemento del motore']),
+    ...freeFolders.map((c): [string, string] => [c.name, 'una cartella dichiarata']),
+    ...input.site.links.map((l): [string, string] => [l.name, 'un link']),
+  ]);
+  const pages = [
+    ...input.pages,
+    ...rootPages.map((p) => ({ slug: p.name, data: p.data, body: p.body })),
+  ]
+    .filter((p) => {
+      const what = taken.get(p.slug);
+      if (what === undefined) return true;
+      warnings.push({ file: `${p.slug}.md`, message: `stesso nome di ${what} (${p.slug}): pagina saltata` });
+      return false;
+    })
+    .sort((a, b) => byOrderThenName({ name: a.slug, order: a.data.order }, { name: b.slug, order: b.data.order }));
   for (const p of pages) {
     assertMarkdownBody(p.body, `${p.slug}.md`);
     items.set(p.slug, { kind: 'page', path: p.slug, data: p.data, body: p.body });
@@ -241,21 +325,22 @@ export function buildStore(): Promise<Store> {
 }
 
 async function printWarnings(store: Store): Promise<Store> {
-  const { formatWarnings } = await import('./warnings');
+  const { formatWarnings, strictError } = await import('./warnings');
   for (const line of formatWarnings(store.warnings, process.env)) console.warn(line);
+  const strict = strictError(store.warnings, process.env);
+  if (strict) throw strict;
   return store;
 }
 
 async function buildStoreUncached(): Promise<Store> {
   // Import dinamico: `astro:content` esiste solo dentro Astro, non nei test unitari.
   const { getCollection } = await import('astro:content');
-  const [songs, books, notes, goals, posts, pages, sites] = await Promise.all([
+  const [songs, books, notes, goals, posts, sites] = await Promise.all([
     getCollection('canzoni'),
     getCollection('lettura'),
     getCollection('noteLettura'),
     getCollection('obiettivo'),
     getCollection('messaggi'),
-    getCollection('pagine'),
     getCollection('sito'),
   ]);
   const site = sites[0]?.data;
@@ -264,7 +349,8 @@ async function buildStoreUncached(): Promise<Store> {
   const { scanFolders } = await import('./scan');
   const { checkClaims } = await import('./claims');
   const { contentDir } = await import('./content-dir');
-  const scan = await scanFolders(contentDir());
+  // Le pagine alla radice e le cartelle dichiarate arrivano dal lettore, non da una collezione.
+  const scan = await scanFolders(contentDir(), (site.cartelle ?? []).map((c) => c.name));
   checkClaims('canzoni', scan.songNames, songs.map((e) => stem(e.id)));
   checkClaims('messaggi', scan.postFolders, posts.map((e) => e.id.replace(/^messaggi\//, '')));
   return buildStoreFrom({
@@ -278,7 +364,7 @@ async function buildStoreUncached(): Promise<Store> {
         return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug), receipt: await postReceipt(slug) };
       }),
     ),
-    pages: pages.map((e) => ({ slug: e.id, data: e.data, body: e.body ?? '' })),
+    pages: [],
     folderFiles: scan.folderFiles,
     site,
   });

@@ -4,6 +4,9 @@ links:
   - name: owlcavelabs
     title: Owl Cave Labs
     url: https://owlcavelabs.it
+cartelle:
+  - name: documenti
+    title: Documenti
 boot:
   rom:
     - text: "FOSFORO VT-78  ROM v1.3"
