@@ -21,12 +21,12 @@ Public GPL-3.0 Astro engine: renders a content folder as a phosphor-CRT terminal
 
 ## Content formats are a contract
 
-Songs, books (`lettura/<slug>.json`, `lettura/obiettivo.json`), posts, root pages and `site.yaml` are agreed with external writers (the homelab sessions export books and songs). Changing a schema in `src/lib/schema.ts` needs Giacomo and the homelab sessions first, and an update of `README.md`.
+Songs, books (`lettura/<slug>.json`, `lettura/obiettivo.json`), posts and `site.yaml` are agreed with external writers (the homelab sessions export books and songs). Changing a schema in `src/lib/schema.ts` needs Giacomo and the homelab sessions first, and an update of `README.md`.
 
 - URL = content path, no trailing slash, no `.html`; `/_fs/` holds the JSON twins, `/_img/` the images, `/og/` the share images.
 - Missing optional keys are absent, never `null`. `finishedAt` is present iff `status === 'finito'`.
-- Plain-text fields reject HTML entities and invisible characters; markdown bodies reject Obsidian syntax. A schema failure in an agreed format (songs, books, messages, root pages, `site.yaml`) fails the build; pages inside folders (`canzoni/<name>.md`, `messaggi/<name>.md`) give `fosforo: avviso` warnings instead.
-- A missing path renders the terminal "not found" page with HTTP 404 and a clickable way back (`lettura/` under `/lettura/*`, home otherwise).
+- Plain-text fields reject HTML entities and invisible characters; markdown bodies reject Obsidian syntax. A schema failure in an agreed format (songs, books, messages, `site.yaml`) fails the build. The free zone gives `fosforo: avviso` warnings instead: pages anywhere (root, `canzoni/<name>.md`, `messaggi/<name>.md`, any depth inside the folders declared in `site.yaml` `cartelle`) and the other files in declared folders. An invalid root page is skipped, never shown with a fallback title. `FOSFORO_STRICT=1` (PR builds) turns warnings into a build failure.
+- A missing path renders the terminal "not found" page with HTTP 404 and a clickable way back: `ls` of the nearest existing folder (`nearestDir` in `src/lib/fs-tree.ts`, mirrored by the inline script in `404.astro`), home otherwise.
 
 ## Constraints
 

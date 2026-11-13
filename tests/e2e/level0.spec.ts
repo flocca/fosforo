@@ -133,3 +133,25 @@ test('la cartella delle canzoni elenca prima le pagine', async ({ page }) => {
   await expect(pre).toContainText('Nota sulle canzoni');
   await expect(pre).not.toContainText('── ');
 });
+
+test('la home elenca la cartella dichiarata dopo messaggi e prima delle pagine', async ({ page }) => {
+  await page.goto('/');
+  const screen = page.locator('#screen');
+  await expect(screen.locator('a[href="/documenti"]')).toHaveCount(1);
+  const hrefs = await screen.locator('a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+  const at = (h: string) => hrefs.indexOf(h);
+  expect(at('/messaggi')).toBeGreaterThan(-1);
+  expect(at('/documenti')).toBeGreaterThan(at('/messaggi'));
+  expect(at('/chi-sono')).toBeGreaterThan(at('/documenti'));
+  await expect(screen).toContainText(/documenti\/?\s+Documenti/);
+});
+
+test('la cartella libera elenca prima le sottocartelle, poi le pagine', async ({ page }) => {
+  await page.goto('/documenti');
+  const hrefs = await page.locator('#screen pre.term a').evaluateAll((as) => as.map((a) => a.getAttribute('href')));
+  expect(hrefs.indexOf('/documenti/progetti')).toBeGreaterThan(-1);
+  expect(hrefs.indexOf('/documenti/progetti')).toBeLessThan(hrefs.indexOf('/documenti/leggimi'));
+
+  await page.goto('/documenti/progetti/fosforo');
+  await expect(page.locator('#screen')).toContainText('Fosforo');
+});
