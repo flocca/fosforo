@@ -1,11 +1,13 @@
-// Lettore delle cartelle dei contenuti (solo in build): i `.md` che diventano pagine e i file dei gestori tipizzati.
+// Lettore delle cartelle dei contenuti (solo in build): i `.md` che diventano pagine, i file delle cartelle
+// dichiarate in site.yaml e i file dei gestori tipizzati.
 import type { Dirent } from 'node:fs';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FOLDER_PAGE_DIRS, isIgnoredName, isSongFile } from './claims';
 
 export type Scan = {
-  folderFiles: { file: string; raw: string }[];
+  // `raw` solo per i `.md`; gli altri file delle cartelle dichiarate arrivano senza, per l'avviso.
+  folderFiles: { file: string; raw?: string }[];
   songNames: string[]; // nomi senza `.md` dei file canzone in `canzoni/`
   postFolders: string[]; // sottocartelle di `messaggi/` con un `index.md`
 };
@@ -22,8 +24,34 @@ async function kind(dir: string, e: Dirent): Promise<'file' | 'dir' | null> {
   return s?.isFile() ? 'file' : s?.isDirectory() ? 'dir' : null;
 }
 
-export async function scanFolders(dir: string): Promise<Scan> {
+// `freeFolders`: le cartelle dichiarate in `site.cartelle`, lette a ogni profondità.
+export async function scanFolders(dir: string, freeFolders: string[] = []): Promise<Scan> {
   const out: Scan = { folderFiles: [], songNames: [], postFolders: [] };
+  const read = (rel: string) => readFile(join(dir, rel), 'utf8');
+
+  // Radice: solo i `.md`, mai le cartelle (il resto del repo non si pubblica).
+  for (const e of await entries(dir)) {
+    if (isIgnoredName(e.name) || !e.name.endsWith('.md')) continue;
+    if ((await kind(dir, e)) === 'file') out.folderFiles.push({ file: e.name, raw: await read(e.name) });
+  }
+
+  // Cartelle dichiarate: ogni file a ogni profondità. Una cartella già visitata (per percorso reale) non si
+  // riapre, così un collegamento simbolico che torna indietro non gira in tondo e non duplica pagine.
+  const visited = new Set<string>([await realpath(dir).catch(() => dir)]);
+  const walk = async (rel: string): Promise<void> => {
+    const real = await realpath(join(dir, rel)).catch(() => null);
+    if (real === null || visited.has(real)) return;
+    visited.add(real);
+    for (const e of await entries(join(dir, rel))) {
+      if (isIgnoredName(e.name)) continue;
+      const child = `${rel}/${e.name}`;
+      const k = await kind(join(dir, rel), e);
+      if (k === 'dir') await walk(child);
+      else if (k === 'file') out.folderFiles.push(e.name.endsWith('.md') ? { file: child, raw: await read(child) } : { file: child });
+    }
+  };
+  for (const folder of freeFolders) await walk(folder);
+
   for (const folder of FOLDER_PAGE_DIRS) {
     const base = join(dir, folder);
     for (const e of await entries(base)) {

@@ -302,21 +302,22 @@ export function buildStore(): Promise<Store> {
 }
 
 async function printWarnings(store: Store): Promise<Store> {
-  const { formatWarnings } = await import('./warnings');
+  const { formatWarnings, strictError } = await import('./warnings');
   for (const line of formatWarnings(store.warnings, process.env)) console.warn(line);
+  const strict = strictError(store.warnings, process.env);
+  if (strict) throw strict;
   return store;
 }
 
 async function buildStoreUncached(): Promise<Store> {
   // Import dinamico: `astro:content` esiste solo dentro Astro, non nei test unitari.
   const { getCollection } = await import('astro:content');
-  const [songs, books, notes, goals, posts, pages, sites] = await Promise.all([
+  const [songs, books, notes, goals, posts, sites] = await Promise.all([
     getCollection('canzoni'),
     getCollection('lettura'),
     getCollection('noteLettura'),
     getCollection('obiettivo'),
     getCollection('messaggi'),
-    getCollection('pagine'),
     getCollection('sito'),
   ]);
   const site = sites[0]?.data;
@@ -325,7 +326,8 @@ async function buildStoreUncached(): Promise<Store> {
   const { scanFolders } = await import('./scan');
   const { checkClaims } = await import('./claims');
   const { contentDir } = await import('./content-dir');
-  const scan = await scanFolders(contentDir());
+  // Le pagine alla radice e le cartelle dichiarate arrivano dal lettore, non da una collezione.
+  const scan = await scanFolders(contentDir(), (site.cartelle ?? []).map((c) => c.name));
   checkClaims('canzoni', scan.songNames, songs.map((e) => stem(e.id)));
   checkClaims('messaggi', scan.postFolders, posts.map((e) => e.id.replace(/^messaggi\//, '')));
   return buildStoreFrom({
@@ -339,7 +341,7 @@ async function buildStoreUncached(): Promise<Store> {
         return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug) };
       }),
     ),
-    pages: pages.map((e) => ({ slug: e.id, data: e.data, body: e.body ?? '' })),
+    pages: [],
     folderFiles: scan.folderFiles,
     site,
   });

@@ -57,4 +57,26 @@ describe('scanFolders', () => {
     const dir = await tree({ 'site.yaml': 'x' });
     expect(await scanFolders(dir)).toEqual({ folderFiles: [], songNames: [], postFolders: [] });
   });
+
+  it('radice e cartelle dichiarate a ogni profondità, senza girare in tondo', async () => {
+    const dir = await tree({
+      'leggimi.md': 'radice',
+      'README.md': 'x',
+      '.bozza.md': 'x',
+      'site.yaml': 'x',
+      'firebase.json': '{}',
+      'documenti/a.md': 'a',
+      'documenti/sotto/b.md': 'b',
+      'documenti/foto.jpg': 'jpg',
+      'documenti/.privata/x.md': 'x',
+      'docs/piano.md': 'privato',
+    });
+    await symlink(dir, join(dir, 'documenti/giro'));
+    const r = await scanFolders(dir, ['documenti', 'assente']);
+    const files = r.folderFiles.map((f) => f.file).sort();
+    expect(files).toEqual(['documenti/a.md', 'documenti/foto.jpg', 'documenti/sotto/b.md', 'leggimi.md']);
+    expect(r.folderFiles.find((f) => f.file === 'documenti/foto.jpg')).toEqual({ file: 'documenti/foto.jpg' });
+    expect(r.folderFiles.find((f) => f.file === 'documenti/sotto/b.md')?.raw).toBe('b');
+    expect(r.folderFiles.find((f) => f.file === 'leggimi.md')?.raw).toBe('radice');
+  });
 });

@@ -6,7 +6,6 @@ import {
   bookSchema,
   goalSchema,
   noteSchema,
-  pageSchema,
   postSchema,
   siteSchema,
   songSchema,
@@ -26,9 +25,5 @@ export const collections = {
     schema: goalSchema,
   }),
   messaggi: defineCollection({ loader: glob({ pattern: POST_GLOB, base }), schema: postSchema }),
-  pagine: defineCollection({
-    loader: glob({ pattern: ['*.md', '!README.md', '!CLAUDE.md', '!AGENTS.md'], base }),
-    schema: pageSchema,
-  }),
   sito: defineCollection({ loader: glob({ pattern: 'site.yaml', base }), schema: siteSchema }),
 };
