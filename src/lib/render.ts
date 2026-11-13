@@ -1,15 +1,15 @@
 // Dal contenuto al testo del terminale: blocchi per ogni percorso.
 import type { Block, Span } from './blocks';
-import { findByPath, listing } from './fs-tree';
+import { listing } from './fs-tree';
 import { markdownToBlocks } from './markdown';
-import type { Item, Store } from './store';
+import { findNode, type Item, type Store } from './store';
 import { formatDate, fromDate } from './dates';
 import { dailyRows, dailyTotals, formatDuration, progressBar, weeklyRows } from './reading';
 import type { Book } from './schema';
 
 // Markdown dei contenuti: i link interni a una cartella diventano `cd` + `ls`.
 const md = (body: string, store: Store, imageBase: string, sizes?: Parameters<typeof markdownToBlocks>[1]['sizes']): Block[] =>
-  markdownToBlocks(body, { imageBase, sizes, isDir: (p) => findByPath(store.root, p)?.type === 'dir' });
+  markdownToBlocks(body, { imageBase, sizes, isDir: (p) => findNode(store, p)?.type === 'dir' });
 
 const line = (...spans: Span[]): Block => ({ type: 'line', spans });
 const text = (t: string, style?: Span['style']): Span => (style ? { text: t, style } : { text: t });
@@ -122,7 +122,7 @@ function reading(store: Store): Block[] {
 }
 
 export function renderPath(path: string, store: Store): Block[] | null {
-  const node = findByPath(store.root, path);
+  const node = findNode(store, path);
   if (!node) return null;
   if (node.type === 'dir') return node.path === 'lettura' ? reading(store) : listing(node);
   if (node.type === 'alias') return node.target ? renderPath(node.target, store) : null;

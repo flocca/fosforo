@@ -211,10 +211,16 @@ export async function postImageSizes(dir: string): Promise<ImageSizes> {
 // Una sola costruzione per processo: in build ogni pagina e ogni endpoint chiedono lo store.
 let cached: Promise<Store> | undefined;
 export function buildStore(): Promise<Store> {
-  // In sviluppo i contenuti cambiano a server acceso: niente cache.
-  if (!import.meta.env?.PROD) return buildStoreUncached();
-  cached ??= buildStoreUncached();
+  // In sviluppo i contenuti cambiano a server acceso: niente cache, avvisi a ogni ricostruzione.
+  if (!import.meta.env?.PROD) return buildStoreUncached().then(printWarnings);
+  cached ??= buildStoreUncached().then(printWarnings);
   return cached;
+}
+
+async function printWarnings(store: Store): Promise<Store> {
+  const { formatWarnings } = await import('./warnings');
+  for (const line of formatWarnings(store.warnings, process.env)) console.warn(line);
+  return store;
 }
 
 async function buildStoreUncached(): Promise<Store> {
@@ -231,6 +237,13 @@ async function buildStoreUncached(): Promise<Store> {
   ]);
   const site = sites[0]?.data;
   if (!site) throw new Error('site.yaml mancante nella cartella dei contenuti');
+  // Il lettore delle cartelle e le collezioni devono attribuire gli stessi file: nessuno sparisce in silenzio.
+  const { scanFolders } = await import('./scan');
+  const { checkClaims } = await import('./claims');
+  const { contentDir } = await import('./content-dir');
+  const scan = await scanFolders(contentDir());
+  checkClaims('canzoni', scan.songNames, songs.map((e) => stem(e.id)));
+  checkClaims('messaggi', scan.postFolders, posts.map((e) => e.id.replace(/^messaggi\//, '')));
   return buildStoreFrom({
     songs: songs.map((e) => ({ slug: stem(e.id), data: e.data, body: e.body ?? '' })),
     books: books.map((e) => ({ slug: e.data.slug, data: e.data })),
@@ -243,6 +256,7 @@ async function buildStoreUncached(): Promise<Store> {
       }),
     ),
     pages: pages.map((e) => ({ slug: e.id, data: e.data, body: e.body ?? '' })),
+    folderFiles: scan.folderFiles,
     site,
   });
 }
