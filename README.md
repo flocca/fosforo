@@ -28,6 +28,8 @@ Variabili d'ambiente:
 
 I formati sono un contratto con chi scrive i contenuti (anche programmi esterni, come l'esportatore dei libri): si validano con uno schema e un errore ferma la build. I campi opzionali assenti vanno omessi, mai messi a `null`. I campi di testo rifiutano le entità HTML (`&egrave;`) e i caratteri invisibili (zero-width space). I corpi markdown rifiutano la sintassi Obsidian (`[[`, `![[`, `> [!`): si usa markdown standard.
 
+Ci sono due zone. I formati concordati (canzoni, libri, messaggi, `site.yaml`) e le pagine nella radice sono severi: un errore ferma la build. Le pagine dentro le cartelle (vedi [Pagine](#pagine)) sono libere: un errore non ferma mai la build, lascia una riga `fosforo: avviso: <file>: <motivo>` nel log, e sotto GitHub Actions anche un'annotazione `::warning` che compare sulla PR.
+
 ### Percorsi
 
 La cartella dei contenuti coincide con il terminale e con gli URL, senza slash finale e senza `.html`:
@@ -36,6 +38,7 @@ La cartella dei contenuti coincide con il terminale e con gli URL, senza slash f
 - `lettura/<slug>.json` diventa `/lettura/<slug>`
 - `messaggi/<data>-<slug>/index.md` diventa `/messaggi/<data>-<slug>`
 - `<nome>.md` nella radice diventa `/<nome>`
+- `canzoni/<nome>.md` e `messaggi/<nome>.md` (pagine nelle cartelle) diventano `/canzoni/<nome>` e `/messaggi/<nome>`
 
 Ogni pagina ha un gemello JSON in `/_fs/` (`/_fs/index.json` per l'albero, `/_fs/<percorso>.json` per i nodi, `/_fs/root.json` per la radice) che il terminale legge per navigare. Le immagini dei post e i fotogrammi delle canzoni sono in `/_img/`, le immagini per le anteprime social in `/og/`. Un percorso inesistente mostra la pagina "non trovato" del terminale, con HTTP 404 e un link per tornare indietro (`lettura/` per `/lettura/*`, la home altrove).
 
@@ -122,6 +125,14 @@ Le immagini diventano a scala di grigi a 640 px e passano attraverso il fosforo.
 ### Pagine
 
 `<nome>.md` nella radice, con frontmatter `title` e `order` (facoltativo, ordina l'elenco). `README.md`, `CLAUDE.md` e `AGENTS.md` sono ignorati.
+
+Le pagine possono stare anche dentro `canzoni/` e `messaggi/`, con lo stesso frontmatter e la stessa resa. In `canzoni/` è una canzone solo il file con il nome a data (`AAAA-MM-GG.md`), ogni altro `.md` è una pagina; in `messaggi/` i messaggi sono sottocartelle, ogni `.md` sciolto è una pagina.
+
+- Il nome è in kebab-case e comincia con una lettera (`leggimi`, `nota-2`), così non si confonde con le date e le cartelle dei messaggi. Un nome diverso, o lo stesso nome di un messaggio (anche in bozza), fa saltare la pagina con un avviso. In `canzoni/` un `.md` che comincia con una cifra ma non è `AAAA-MM-GG` è una canzone con il nome sbagliato e ferma la build.
+- `ls` della cartella elenca prima le pagine (al massimo quattro, per `order` e poi per nome), una riga vuota, l'archivio; le pagine oltre la quarta vanno dopo l'archivio, separate da un'altra riga vuota.
+- Un frontmatter illeggibile, uno che non rispetta lo schema, uno assente o la sintassi Obsidian nel testo non fermano la build: la pagina si mostra senza il blocco del frontmatter, con il nome del file come titolo, e lascia un avviso.
+- `README.md`, `CLAUDE.md`, `AGENTS.md` e i nomi che cominciano con un punto sono ignorati; gli altri file sciolti (non `.md`) pure.
+- Una cartella con sole pagine esiste lo stesso; `canzone-del-giorno` esiste solo se c'è almeno una canzone.
 
 ### site.yaml
 

@@ -1,5 +1,6 @@
 import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
+import { POST_GLOB, SONG_GLOB } from './lib/claims';
 import { contentDir } from './lib/content-dir';
 import {
   bookSchema,
@@ -14,7 +15,7 @@ import {
 const base = contentDir();
 
 export const collections = {
-  canzoni: defineCollection({ loader: glob({ pattern: 'canzoni/*.md', base }), schema: songSchema }),
+  canzoni: defineCollection({ loader: glob({ pattern: SONG_GLOB, base }), schema: songSchema }),
   lettura: defineCollection({
     loader: glob({ pattern: ['lettura/*.json', '!lettura/obiettivo.json'], base }),
     schema: bookSchema,
@@ -24,7 +25,7 @@ export const collections = {
     loader: glob({ pattern: 'lettura/obiettivo.json', base }),
     schema: goalSchema,
   }),
-  messaggi: defineCollection({ loader: glob({ pattern: 'messaggi/*/index.md', base }), schema: postSchema }),
+  messaggi: defineCollection({ loader: glob({ pattern: POST_GLOB, base }), schema: postSchema }),
   pagine: defineCollection({
     loader: glob({ pattern: ['*.md', '!README.md', '!CLAUDE.md', '!AGENTS.md'], base }),
     schema: pageSchema,

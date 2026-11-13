@@ -25,7 +25,7 @@ Songs, books (`lettura/<slug>.json`, `lettura/obiettivo.json`), posts, root page
 
 - URL = content path, no trailing slash, no `.html`; `/_fs/` holds the JSON twins, `/_img/` the images, `/og/` the share images.
 - Missing optional keys are absent, never `null`. `finishedAt` is present iff `status === 'finito'`.
-- Plain-text fields reject HTML entities and invisible characters; markdown bodies reject Obsidian syntax. A schema failure fails the build.
+- Plain-text fields reject HTML entities and invisible characters; markdown bodies reject Obsidian syntax. A schema failure in an agreed format (songs, books, messages, root pages, `site.yaml`) fails the build; pages inside folders (`canzoni/<name>.md`, `messaggi/<name>.md`) give `fosforo: avviso` warnings instead.
 - A missing path renders the terminal "not found" page with HTTP 404 and a clickable way back (`lettura/` under `/lettura/*`, home otherwise).
 
 ## Constraints
