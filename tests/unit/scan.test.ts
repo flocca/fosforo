@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -37,6 +37,18 @@ describe('scanFolders', () => {
       { file: 'canzoni/leggimi.md', raw: 'nota canzoni' },
       { file: 'messaggi/leggimi.md', raw: 'nota messaggi' },
     ]);
+    expect(r.songNames).toEqual(['2026-11-10']);
+    expect(r.postFolders).toEqual(['2026-01-05-prova']);
+  });
+
+  it('segue i collegamenti simbolici, come i glob delle collezioni', async () => {
+    const outside = await tree({ 'nota.md': 'nota collegata', 'canzone.md': 'canzone', 'post/index.md': 'post' });
+    const dir = await tree({ 'canzoni/.tieni': '', 'messaggi/.tieni': '' });
+    await symlink(join(outside, 'nota.md'), join(dir, 'canzoni/collegata.md'));
+    await symlink(join(outside, 'canzone.md'), join(dir, 'canzoni/2026-11-10.md'));
+    await symlink(join(outside, 'post'), join(dir, 'messaggi/2026-01-05-prova'));
+    const r = await scanFolders(dir);
+    expect(r.folderFiles).toEqual([{ file: 'canzoni/collegata.md', raw: 'nota collegata' }]);
     expect(r.songNames).toEqual(['2026-11-10']);
     expect(r.postFolders).toEqual(['2026-01-05-prova']);
   });

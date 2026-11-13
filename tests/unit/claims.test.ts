@@ -34,4 +34,7 @@ describe('checkClaims', () => {
     expect(() => checkClaims('canzoni', ['a', 'b'], ['a'])).toThrow(/^fosforo: canzoni:.*b/);
     expect(() => checkClaims('messaggi', ['a'], ['a', 'c'])).toThrow(/^fosforo: messaggi:.*c/);
   });
+  it('un nome riscritto dalla collezione: l\'errore dice perché', () => {
+    expect(() => checkClaims('messaggi', ['Prova Uno'], ['prova-uno'])).toThrow(/minuscole, cifre e trattini/);
+  });
 });

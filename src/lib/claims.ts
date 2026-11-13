@@ -27,5 +27,8 @@ export function checkClaims(what: string, scanned: string[], collected: string[]
   const parts: string[] = [];
   if (onlyScanned.length) parts.push(`sul disco ma non nella collezione: ${onlyScanned.join(', ')}`);
   if (onlyCollected.length) parts.push(`nella collezione ma non sul disco: ${onlyCollected.join(', ')}`);
-  throw new Error(`fosforo: ${what}: i file non coincidono (${parts.join('; ')})`);
+  // Di solito è un nome che la collezione riscrive (maiuscole, spazi, accenti).
+  throw new Error(
+    `fosforo: ${what}: i file non coincidono (${parts.join('; ')}). I nomi vanno scritti con minuscole, cifre e trattini.`,
+  );
 }
