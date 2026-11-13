@@ -260,7 +260,17 @@ export function buildStoreFrom(input: StoreInput): Store {
   }
 
   const root: FsNode = { name: '', path: '', type: 'dir', children: rootChildren };
-  return { root, items, goal: input.goal, site: input.site, latestSong, nodes: nodeMap(root), warnings };
+  const nodes = nodeMap(root);
+
+  // Link della cornice di ricezione: un percorso mancante (anche una pagina saltata) è un avviso,
+  // e la riga si mostra senza link; non deve lasciare in 404 la canzone del giorno.
+  for (const row of input.site.reception?.message ?? []) {
+    if (row.link && !nodes.has(normalizePath(row.link))) {
+      warnings.push({ file: 'site.yaml', message: `reception: il link ${row.link} della riga ${row.label} non esiste: la riga si mostra senza link` });
+    }
+  }
+
+  return { root, items, goal: input.goal, site: input.site, latestSong, nodes, warnings };
 }
 
 // Ogni nodo per percorso; due nodi con lo stesso percorso (es. una pagina con il nome di un link) bloccano la build.

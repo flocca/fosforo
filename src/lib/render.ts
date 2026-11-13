@@ -71,12 +71,8 @@ function header(item: Extract<Item, { kind: 'post' }>, store: Store): Block[] {
     const filled = fillRow(row, values, column, item.path);
     if (!filled) continue;
     const value: Span = { text: filled.value, style: 'dim' };
-    if (filled.link) {
-      if (!findNode(store, filled.link.slice(1))) {
-        throw new Error(`${item.path}: il link ${filled.link} della cornice di ricezione non esiste nell'albero`);
-      }
-      value.cmd = internalCmd(filled.link, { isDir: isDirIn(store) });
-    }
+    // Un link a un percorso mancante è già un avviso dello store: qui il valore resta senza link.
+    if (filled.link && findNode(store, filled.link)) value.cmd = internalCmd(filled.link, { isDir: isDirIn(store) });
     out.push(line(text(filled.lead, 'dim'), value));
   }
   return out;
