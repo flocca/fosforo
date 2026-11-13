@@ -60,14 +60,31 @@ export const goalSchema = z
     path: ['since'],
   });
 
+// receivedAt non quotato diventa una Date YAML (perde offset e ora scritta): lo si rifiuta con un aiuto.
+const receivedAt = z.preprocess((v, ctx) => {
+  if (v instanceof Date) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'receivedAt va scritto tra virgolette: "2026-11-11T22:10:00+01:00"',
+    });
+    return z.NEVER;
+  }
+  return v;
+}, instant);
+
 export const postSchema = z
   .object({
     title: plainText,
     date,
+    receivedAt: receivedAt.optional(),
     description: plainText.optional(),
     draft: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine((p) => p.receivedAt === undefined || p.receivedAt.slice(0, 10) === p.date, {
+    message: 'receivedAt deve cadere nel giorno di date (stessi primi 10 caratteri)',
+    path: ['receivedAt'],
+  });
 
 export const pageSchema = z
   .object({ title: plainText, order: z.number().optional() })
