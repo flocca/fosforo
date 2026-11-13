@@ -1,7 +1,9 @@
 // Store dei contenuti: costruisce l'albero e gli elementi (solo in build).
 import type { Book, Goal, Page, Post, SiteConfig, Song } from './schema';
 import { assertMarkdownBody } from './text';
-import type { FsNode } from './fs-tree';
+import { normalizePath, type FsNode } from './fs-tree';
+import { FOLDER_PAGE_DIRS } from './claims';
+import { parseFolderPage, type FolderPage, type Warning } from './folder-page';
 
 export type Item =
   | { kind: 'song'; path: string; data: Song; body: string }
@@ -15,6 +17,8 @@ export type Store = {
   goal?: Goal;
   site: SiteConfig;
   latestSong?: Item;
+  nodes: Map<string, FsNode>; // ogni nodo dell'albero per percorso, la radice in ''
+  warnings: Warning[];
 };
 
 type Entry<T> = { slug: string; data: T; body: string };
@@ -27,6 +31,8 @@ export type StoreInput = {
   goal?: Goal;
   posts: (Entry<Post> & { images?: ImageSizes })[];
   pages: Entry<Page>[];
+  // `.md` sciolti nelle cartelle delle pagine, percorso relativo alla cartella dei contenuti
+  folderFiles?: { file: string; raw: string }[];
   site: SiteConfig;
 };
 
@@ -35,9 +41,60 @@ const stem = (id: string) => id.split('/').pop() ?? id;
 
 const byDesc = (a: string, b: string) => (a < b ? 1 : a > b ? -1 : 0);
 
+// Pagine: per `order`, poi per nome
+const byOrderThenName = (a: { name: string; order?: number }, b: { name: string; order?: number }) =>
+  (a.order ?? Infinity) - (b.order ?? Infinity) || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+// Pagine prima dell'archivio di una cartella; le altre vanno dopo.
+const HEAD_PAGES = 4;
+
+// Legge i `.md` sciolti nelle cartelle: pagine per cartella e avvisi. Un nome a cifre in `canzoni/` blocca la build.
+function readFolderPages(files: { file: string; raw: string }[]) {
+  const byDir = new Map<string, FolderPage[]>();
+  const warnings: Warning[] = [];
+  for (const { file, raw } of files) {
+    const slash = file.lastIndexOf('/');
+    const dir = file.slice(0, slash);
+    const name = file.slice(slash + 1);
+    if (!(FOLDER_PAGE_DIRS as readonly string[]).includes(dir)) {
+      warnings.push({ file, message: 'non è in una cartella che accetta pagine: saltato' });
+      continue;
+    }
+    if (dir === 'canzoni' && /^\d/.test(name)) {
+      throw new Error(`fosforo: ${file}: sembra una canzone ma il nome non è AAAA-MM-GG`);
+    }
+    const r = parseFolderPage(file, raw);
+    warnings.push(...r.warnings);
+    if (r.page) byDir.set(dir, [...(byDir.get(dir) ?? []), r.page]);
+  }
+  return { byDir, warnings };
+}
+
 export function buildStoreFrom(input: StoreInput): Store {
   const items = new Map<string, Item>();
   const rootChildren: FsNode[] = [];
+  const { byDir, warnings } = readFolderPages(input.folderFiles ?? []);
+  // Percorsi che una pagina non può prendere: gli elementi tipizzati e le bozze (anche se non pubblicate).
+  const drafts = new Set(input.posts.filter((p) => p.data.draft).map((p) => `messaggi/${p.slug}`));
+
+  // Pagine di una cartella attorno all'archivio: quattro prima, le altre dopo.
+  const withPages = (dir: string, archive: FsNode[]): FsNode[] => {
+    const pages = (byDir.get(dir) ?? [])
+      .filter((p) => {
+        const path = `${dir}/${p.name}`;
+        if (!items.has(path) && !drafts.has(path)) return true;
+        const what = items.get(path)?.kind === 'song' ? 'una canzone' : 'un messaggio';
+        warnings.push({ file: `${path}.md`, message: `stesso nome di ${what} (${path}): pagina saltata` });
+        return false;
+      })
+      .sort((a, b) => byOrderThenName({ name: a.name, order: a.data.order }, { name: b.name, order: b.data.order }));
+    const nodes = pages.map((p, i): FsNode => {
+      const path = `${dir}/${p.name}`;
+      items.set(path, { kind: 'page', path, data: p.data, body: p.body });
+      return { name: p.name, path, type: 'file', title: p.data.title, section: i < HEAD_PAGES ? 'head' : 'tail' };
+    });
+    return [...nodes.slice(0, HEAD_PAGES), ...archive, ...nodes.slice(HEAD_PAGES)];
+  };
 
   // Canzoni, dalla più recente
   const songs = [...input.songs].sort((a, b) => byDesc(a.data.date, b.data.date));
@@ -57,8 +114,9 @@ export function buildStoreFrom(input: StoreInput): Store {
       target: latestSong.path,
       title: 'canzone del giorno',
     });
-    rootChildren.push({ name: 'canzoni', path: 'canzoni', type: 'dir', children: songNodes });
   }
+  const songChildren = withPages('canzoni', songNodes);
+  if (songChildren.length) rootChildren.push({ name: 'canzoni', path: 'canzoni', type: 'dir', children: songChildren });
 
   // Lettura: in corso (ultima lettura) poi finiti (data di fine)
   if (input.books.length) {
@@ -94,11 +152,15 @@ export function buildStoreFrom(input: StoreInput): Store {
     }
     rootChildren.push({ name: 'messaggi', path: 'messaggi', type: 'dir', children: postNodes });
   }
+  // Pagine in `messaggi/`: attorno ai post, o da sole se non ce ne sono.
+  const postDir = rootChildren.find((c) => c.path === 'messaggi');
+  const postChildren = withPages('messaggi', postDir?.children ?? []);
+  if (postDir) postDir.children = postChildren;
+  else if (postChildren.length) rootChildren.push({ name: 'messaggi', path: 'messaggi', type: 'dir', children: postChildren });
 
-  // Pagine: per `order`, poi per nome
-  const pages = [...input.pages].sort(
-    (a, b) =>
-      (a.data.order ?? Infinity) - (b.data.order ?? Infinity) || (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0),
+  // Pagine alla radice
+  const pages = [...input.pages].sort((a, b) =>
+    byOrderThenName({ name: a.slug, order: a.data.order }, { name: b.slug, order: b.data.order }),
   );
   for (const p of pages) {
     assertMarkdownBody(p.body, `${p.slug}.md`);
@@ -111,14 +173,23 @@ export function buildStoreFrom(input: StoreInput): Store {
     rootChildren.push({ name: l.name, path: l.name, type: 'link', title: l.title, target: l.url });
   }
 
-  return {
-    root: { name: '', path: '', type: 'dir', children: rootChildren },
-    items,
-    goal: input.goal,
-    site: input.site,
-    latestSong,
-  };
+  const root: FsNode = { name: '', path: '', type: 'dir', children: rootChildren };
+  return { root, items, goal: input.goal, site: input.site, latestSong, nodes: nodeMap(root), warnings };
 }
+
+// Ogni nodo per percorso; due nodi con lo stesso percorso (es. una pagina con il nome di un link) bloccano la build.
+function nodeMap(root: FsNode): Map<string, FsNode> {
+  const nodes = new Map<string, FsNode>();
+  const walk = (n: FsNode) => {
+    if (nodes.has(n.path)) throw new Error(`fosforo: percorso doppio: ${n.path}`);
+    nodes.set(n.path, n);
+    n.children?.forEach(walk);
+  };
+  walk(root);
+  return nodes;
+}
+
+export const findNode = (store: Store, path: string): FsNode | null => store.nodes.get(normalizePath(path)) ?? null;
 
 // Dimensioni delle immagini accanto a un post dopo l'elaborazione della build
 // (scala di grigi, larghezza massima 640, proporzioni mantenute), per nome senza estensione.
