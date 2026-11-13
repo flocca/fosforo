@@ -246,6 +246,30 @@
       }
     },
     {
+      "name": "entit\u00e0 esadecimale",
+      "input": "a &#xE8; b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 esadecimale con X",
+      "input": "a &#XE8; b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 maiuscola",
+      "input": "&Egrave;",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
       "name": "zero-width space",
       "input": "\u200bIris",
       "expect": {
