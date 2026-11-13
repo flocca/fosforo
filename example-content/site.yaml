@@ -26,3 +26,11 @@ boot:
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
   welcomeStatic: "Benvenuto. Clicca un nome."
+reception:
+  stamp: { label: RICEZIONE, value: "{data}" }
+  message:
+    - { label: OPERATORE, value: guest }
+    - { label: DIMENSIONE, value: "{byte} byte" }
+    - { label: CONTROLLO, value: "{controllo} OK" }
+    - { label: ALLEGATI, value: "{allegati}" }
+    - { label: RISPOSTE, value: chi-sono, link: /chi-sono }
