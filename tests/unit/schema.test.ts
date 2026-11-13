@@ -30,6 +30,16 @@ const validBook = {
 };
 
 describe('songSchema', () => {
+  it('accetta una canzone con intro', () => {
+    const song = { ...validSong, intro: 'Chiede di inoltrarla: eseguo.' };
+    expect(songSchema.parse(song)).toEqual(song);
+  });
+  it('rifiuta intro null', () => {
+    expect(() => songSchema.parse({ ...validSong, intro: null })).toThrow();
+  });
+  it('rifiuta intro con link', () => {
+    expect(() => songSchema.parse({ ...validSong, intro: 'https://x.it' })).toThrow();
+  });
   it('accetta una canzone valida', () => {
     expect(songSchema.parse(validSong)).toEqual(validSong);
   });
@@ -49,7 +59,7 @@ describe('songSchema', () => {
     expect(() => songSchema.parse({ ...validSong, title: 'Caf&eacute;' })).toThrow();
   });
   it('rifiuta caratteri invisibili nel titolo', () => {
-    expect(() => songSchema.parse({ ...validSong, title: '​Iris' })).toThrow();
+    expect(() => songSchema.parse({ ...validSong, title: '\u200bIris' })).toThrow();
   });
   it('rifiuta chiavi sconosciute in links', () => {
     const links = { ...validSong.links, deezer: 'https://deezer.com/x' };

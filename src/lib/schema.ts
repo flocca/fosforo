@@ -1,5 +1,5 @@
 import { z } from 'astro/zod';
-import { plainText } from './text';
+import { introText, plainText } from './text';
 
 // Il YAML non quotato (date: 2026-11-10) viene letto come Date a mezzanotte UTC:
 // lo si riporta alla stringa YYYY-MM-DD, che è il formato dei contenuti.
@@ -25,6 +25,7 @@ export const songSchema = z
         youtube: z.url().optional(),
       })
       .strict(),
+    intro: introText.optional(),
   })
   .strict();
 
