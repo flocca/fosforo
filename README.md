@@ -67,7 +67,7 @@ Una nota breve sulla canzone di oggi (opzionale).
 
 `appleTrackId` è una stringa numerica. Se c'è il link `youtube`, la build scarica la miniatura e la mostra attraverso il fosforo.
 
-`intro` è una frase del terminale prima della canzone, scritta da chi esporta: compare a luce piena tra la data e il titolo, seguita da una riga vuota. È testo semplice (niente entità HTML né caratteri invisibili, come gli altri campi) con quattro regole in più:
+`intro` è una frase del terminale prima della canzone, scritta da chi esporta: compare attenuata, come il timbro, tra il timbro e il titolo, seguita da una riga vuota. È testo semplice (niente entità HTML né caratteri invisibili, come gli altri campi) con quattro regole in più:
 
 1. da 1 a 200 caratteri, contati come code point: una lettera accentata o un carattere fuori dal piano base (come 🎵) valgono uno, ma le emoji composte (bandiere, toni della pelle, U+FE0F) contano più code point, e quelle unite da ZWJ (U+200D, un carattere invisibile) sono rifiutate;
 2. una sola riga: nessun carattere di controllo (U+0000-U+001F, U+007F-U+009F, quindi niente a capo, tab, ritorno carrello, NEL) e nessun separatore di riga o di paragrafo (U+2028, U+2029);

@@ -46,7 +46,7 @@ describe('renderPath', () => {
     expect(txt(b[0])).toBe('── 10/11/2026 ──');
     expect((b[0] as any).spans[0].style).toBe('dim');
     expect(txt(b[1])).toBe(intro);
-    expect((b[1] as any).spans[0].style).toBeUndefined();
+    expect((b[1] as any).spans[0].style).toBe('dim');
     expect(b[2].type).toBe('blank');
     expect(txt(b[3])).toBe('Un giorno qualunque');
     expect((b[3] as any).spans[0].style).toBe('bold');
@@ -216,11 +216,11 @@ describe('cornice di ricezione', () => {
     expect(txt(b[1])).toBe('Un giorno qualunque');
   });
 
-  it("canzone con intro: timbro, intro a luce piena, riga vuota, titolo", () => {
+  it('canzone con intro: timbro, intro attenuata, riga vuota, titolo', () => {
     const b = renderPath('canzoni/2026-11-10', build({ reception, intro: 'Ciao a tutti.' }))!;
     expect(txt(b[0])).toBe('RICEZIONE ..... 10/11/2026');
     expect(txt(b[1])).toBe('Ciao a tutti.');
-    expect((b[1] as any).spans[0].style).toBeUndefined();
+    expect((b[1] as any).spans[0].style).toBe('dim');
     expect(b[2].type).toBe('blank');
     expect(txt(b[3])).toBe('Un giorno qualunque');
   });

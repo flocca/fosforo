@@ -85,8 +85,8 @@ function header(item: Extract<Item, { kind: 'post' }>, store: Store): Block[] {
 function song(item: Extract<Item, { kind: 'song' }>, store: Store): Block[] {
   const d = item.data;
   const out: Block[] = [stamp(d.date, store, item.path)];
-  // L'intro, se c'è, a luce piena tra il timbro e il titolo.
-  if (d.intro) out.push(line(text(d.intro)), blank);
+  // L'intro, se c'è, attenuata come la cornice, tra il timbro e il titolo.
+  if (d.intro) out.push(line(text(d.intro, 'dim')), blank);
   out.push(line(text(d.title, 'bold')), line(text(d.album ? `${d.artist} · ${d.album}` : d.artist)), blank);
   if (d.links.youtube) {
     out.push({ type: 'image', src: `/_img/canzoni/${d.date}.png`, alt: d.title, width: 640, height: 360 }, blank);
