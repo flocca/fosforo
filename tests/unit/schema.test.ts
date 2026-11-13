@@ -163,6 +163,10 @@ describe('siteSchema', () => {
     expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'R', value: 'x', colore: 'rosso' }] } })).toThrow();
   });
 
+  it('rifiuta un link nel timbro', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { stamp: { label: 'RICEZIONE', value: '{data}', link: '/chi-sono' } } })).toThrow(/timbro/);
+  });
+
   it('rifiuta reception: null', () => {
     expect(() => siteSchema.parse({ ...validSite, reception: null })).toThrow();
   });

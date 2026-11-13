@@ -121,6 +121,9 @@ const receptionSchema = z
   })
   .strict()
   .superRefine((r, ctx) => {
+    if (r.stamp?.link !== undefined) {
+      ctx.addIssue({ code: 'custom', message: 'Il timbro non ha link: link vale solo nelle righe di message' });
+    }
     if (r.stamp) allowedIn(STAMP_PLACEHOLDERS, 'nel timbro')(r.stamp.value, ctx);
     for (const row of r.message ?? []) allowedIn(MESSAGE_PLACEHOLDERS, 'nei campi dei messaggi')(row.value, ctx);
   });
