@@ -1,0 +1,337 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "frase normale",
+      "input": "L'ha mandata l'operatore. Chiede di inoltrarla: eseguo.",
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "accenti e virgolette dritte",
+      "input": "Arriva di marted\u00ec, \"come sempre\".",
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "sigla con punti",
+      "input": "R.E.M.",
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "vuota",
+      "input": "",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "solo spazio",
+      "input": " ",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "spazio in testa",
+      "input": " a",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "spazio in coda",
+      "input": "a ",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "spazio non separabile in coda",
+      "input": "a\u00a0",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "spazio ideografico in testa",
+      "input": "\u3000a",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "a capo",
+      "input": "a\nb",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "a capo in coda",
+      "input": "a\n",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "ritorno carrello",
+      "input": "a\rb",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "tab",
+      "input": "a\tb",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "separatore di riga",
+      "input": "a\u2028b",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "separatore di paragrafo",
+      "input": "a\u2029b",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "NEL",
+      "input": "a\u0085b",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "DEL",
+      "input": "a\u007fb",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "200 ASCII",
+      "input": "a",
+      "repeat": 200,
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "201 ASCII",
+      "input": "a",
+      "repeat": 201,
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "200 accentate",
+      "input": "\u00e8",
+      "repeat": 200,
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "201 accentate",
+      "input": "\u00e8",
+      "repeat": 201,
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "astrale conta uno",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83c\udfb5",
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "astrale oltre il limite",
+      "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ud83c\udfb5",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "astrale in coda",
+      "input": "a\ud83c\udfb5",
+      "expect": {
+        "plainText": true,
+        "intro": true
+      }
+    },
+    {
+      "name": "url",
+      "input": "vedi https://x.it",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "www maiuscolo",
+      "input": "vai su WWW.x.it",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "www misto",
+      "input": "vai su wWw.x.it",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "link markdown",
+      "input": "[x](y)",
+      "expect": {
+        "plainText": true,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 HTML",
+      "input": "Caf&eacute;",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 numerica",
+      "input": "a &#232; b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 esadecimale",
+      "input": "a &#xE8; b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 esadecimale con X",
+      "input": "a &#XE8; b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "entit\u00e0 maiuscola",
+      "input": "&Egrave;",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "zero-width space",
+      "input": "\u200bIris",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "ZWNJ",
+      "input": "a\u200cb",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "ZWJ",
+      "input": "a\u200db",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "LRM",
+      "input": "a\u200eb",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "RLM",
+      "input": "a\u200fb",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "word joiner",
+      "input": "a\u2060b",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "BOM",
+      "input": "\ufeffa",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    },
+    {
+      "name": "trattino morbido",
+      "input": "a\u00adb",
+      "expect": {
+        "plainText": false,
+        "intro": false
+      }
+    }
+  ]
+}

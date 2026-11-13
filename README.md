@@ -59,12 +59,26 @@ links:
   appleMusic: https://music.apple.com/it/song/un-giorno-qualunque/1700000003
   spotify: https://open.spotify.com/...   # opzionale
   youtube: https://www.youtube.com/watch?v=wCzoTQqEoFg   # opzionale
+intro: "L'ha mandata l'operatore. Chiede di inoltrarla alle altre reti: eseguo."   # opzionale
 ---
 
 Una nota breve sulla canzone di oggi (opzionale).
 ```
 
 `appleTrackId` è una stringa numerica. Se c'è il link `youtube`, la build scarica la miniatura e la mostra attraverso il fosforo.
+
+`intro` è una frase del terminale prima della canzone, scritta da chi esporta: compare a luce piena tra la data e il titolo, seguita da una riga vuota. È testo semplice (niente entità HTML né caratteri invisibili, come gli altri campi) con quattro regole in più:
+
+1. da 1 a 200 caratteri, contati come code point: una lettera accentata o un carattere fuori dal piano base (come 🎵) valgono uno, ma le emoji composte (bandiere, toni della pelle, U+FE0F) contano più code point, e quelle unite da ZWJ (U+200D, un carattere invisibile) sono rifiutate;
+2. una sola riga: nessun carattere di controllo (U+0000-U+001F, U+007F-U+009F, quindi niente a capo, tab, ritorno carrello, NEL) e nessun separatore di riga o di paragrafo (U+2028, U+2029);
+3. il primo e l'ultimo carattere non sono spazi (U+0020, U+00A0, U+1680, U+2000-U+200A, U+202F, U+205F, U+3000): uno spazio ai bordi viene rifiutato, non tolto;
+4. niente link: il testo non contiene `://`, `www.` (con le tre `w` maiuscole o minuscole in qualsiasi combinazione) né `](`.
+
+Il valore non viene mai trasformato: un'intro che non rispetta le regole fa fallire la build. `intro: null` non è ammesso, se non c'è intro la chiave manca.
+
+I casi di prova condivisi sono in `tests/contract/text-cases.json`: un file tutto ASCII in cui ogni carattere non ASCII o di controllo è scritto `\uXXXX`, ogni caso ha `input`, un `repeat` facoltativo (l'input ripetuto n volte) e in `expect` il risultato atteso per ciascun validatore (`plainText`, `intro`; una chiave assente vuol dire "non verificato"). Chi esporta in un altro linguaggio dovrebbe eseguirli con il proprio validatore.
+
+Ordine di rilascio: prima il motore, poi `.fosforo-ref` del sito, solo dopo chi esporta scrive il campo. Da quel momento il sito non può tornare a un motore precedente: la sua build fallirebbe sulla chiave sconosciuta.
 
 ### Libri
 

@@ -38,6 +38,20 @@ describe('renderPath', () => {
     expect(links[0].href).toBe('https://youtu.be/x');
     expect(lines(b)).toContain('Una nota.');
   });
+  it('canzone con intro', () => {
+    const intro = "L'ha mandata l'operatore. Chiede di inoltrarla alle altre reti: eseguo.";
+    const base = (store.items.get('canzoni/2026-11-10') as any).data;
+    const s = buildStoreFrom({ songs: [{ slug: '2026-11-10', body: 'Una nota.', data: { ...base, intro } }], books: [], posts: [], pages: [], site: store.site });
+    const b = renderPath('canzoni/2026-11-10', s)!;
+    expect(txt(b[0])).toBe('── 10/11/2026 ──');
+    expect((b[0] as any).spans[0].style).toBe('dim');
+    expect(txt(b[1])).toBe(intro);
+    expect((b[1] as any).spans[0].style).toBeUndefined();
+    expect(b[2].type).toBe('blank');
+    expect(txt(b[3])).toBe('Un giorno qualunque');
+    expect((b[3] as any).spans[0].style).toBe('bold');
+    expect(renderPath('canzone-del-giorno', s)).toEqual(renderPath('canzoni/2026-11-10', s));
+  });
   it('canzone con album, senza youtube: niente immagine', () => {
     const s = buildStoreFrom({ ...{ songs: [{ slug: '2026-01-01', body: '', data: { date: '2026-01-01', title: 'T', artist: 'A', album: 'B', appleTrackId: '1', links: { appleMusic: 'https://a.b/c', spotify: 'https://s.p/x' } } }], books: [], posts: [], pages: [], site: store.site } });
     const b = renderPath('canzoni/2026-01-01', s)!;
