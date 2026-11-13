@@ -69,7 +69,7 @@ Una nota breve sulla canzone di oggi (opzionale).
 
 `appleTrackId` è una stringa numerica. Se c'è il link `youtube`, la build scarica la miniatura e la mostra attraverso il fosforo.
 
-`intro` è una frase del terminale prima della canzone, scritta da chi esporta: compare a luce piena tra la data e il titolo, seguita da una riga vuota. È testo semplice (niente entità HTML né caratteri invisibili, come gli altri campi) con quattro regole in più:
+`intro` è una frase del terminale prima della canzone, scritta da chi esporta: compare attenuata, come il timbro, tra il timbro e il titolo, seguita da una riga vuota. È testo semplice (niente entità HTML né caratteri invisibili, come gli altri campi) con quattro regole in più:
 
 1. da 1 a 200 caratteri, contati come code point: una lettera accentata o un carattere fuori dal piano base (come 🎵) valgono uno, ma le emoji composte (bandiere, toni della pelle, U+FE0F) contano più code point, e quelle unite da ZWJ (U+200D, un carattere invisibile) sono rifiutate;
 2. una sola riga: nessun carattere di controllo (U+0000-U+001F, U+007F-U+009F, quindi niente a capo, tab, ritorno carrello, NEL) e nessun separatore di riga o di paragrafo (U+2028, U+2029);
@@ -117,12 +117,17 @@ Ordine di rilascio: prima il motore, poi `.fosforo-ref` del sito, solo dopo chi 
 ---
 title: Un post di prova
 date: 2026-01-05
+receivedAt: "2026-01-05T09:05:00+01:00"   # facoltativo
 description: Facoltativa.
 draft: false   # facoltativo, le bozze (true) non si pubblicano
 ---
 ```
 
 Le immagini diventano a scala di grigi a 640 px e passano attraverso il fosforo.
+
+`receivedAt` è facoltativo: è l'istante di ricezione, ISO 8601 con offset, e va scritto tra virgolette (senza, YAML lo legge come data e perde ora e offset, e la build si ferma). Deve cadere nello stesso giorno di `date` (stessi primi 10 caratteri).
+
+Un messaggio si apre con il timbro di ricezione e i campi di `reception.message` in `site.yaml` (vedi sotto), attenuati, poi il titolo in grassetto e il testo. Senza campi restano il timbro, il titolo e il testo.
 
 ### Pagine
 
@@ -166,6 +171,15 @@ boot:
   welcome: "Benvenuto. Scrivi help oppure clicca un nome."
   welcomeTouch: "Benvenuto. Tocca un nome oppure scrivi help."
   welcomeStatic: "Benvenuto. Clicca un nome."   # facoltativo
+reception:                 # facoltativo
+  stamp: { label: RICEZIONE, value: "{data}" }
+  message:
+    - { label: OPERATORE, value: guest }
+    - { label: DIMENSIONE, value: "{byte} byte" }
+    - { label: CONTROLLO, value: "{controllo} OK" }
+    - { label: ALLEGATI, value: "{allegati}" }
+    - { label: ORA, value: "{ora}" }
+    - { label: RISPOSTE, value: chi-sono, link: /chi-sono }
 ```
 
 `description` è facoltativo: è il testo dell'anteprima social della home (tagliato a 160 caratteri); se manca, è "`<host>`: canzoni, letture e pagine, in forma di terminale.".
@@ -173,6 +187,18 @@ boot:
 `cartelle` è facoltativo: senza, non c'è nessuna cartella libera. In `ls /` le cartelle stanno dopo `messaggi/`, nell'ordine dell'elenco, prima delle pagine; il `title`, facoltativo, compare attenuato accanto al nome. Il nome non può essere `canzoni`, `lettura`, `messaggi`, `canzone-del-giorno`, `bin`, `og`, né ripetersi, né coincidere con il nome di un link: un errore qui, come ogni errore di `site.yaml`, ferma la build.
 
 Le righe `rom` imitano l'output di una ROM e possono essere in inglese. Nel testo si possono usare i segnaposto `{canzone}` (titolo della canzone più recente) e `{data}` (data della canzone più recente). Le righe non vanno a capo e su schermi stretti vengono tagliate: tenerle entro 34 colonne. `welcome` compare a fine boot (le parole help e ls del benvenuto si possono cliccare), `welcomeTouch` al posto suo sui dispositivi touch. `welcomeStatic` è facoltativo: è la riga di benvenuto della home senza JavaScript (dove non si può scrivere, quindi niente "scrivi help"); se manca, la home senza JavaScript non mostra nessuna riga di benvenuto.
+
+`reception` è facoltativo ed è la cornice di ricezione di canzoni e messaggi. `stamp` è il timbro in cima a canzoni e messaggi, `message` sono i campi dei messaggi sotto il timbro. Ogni riga ha `label` e `value` (testo semplice, non vuoti) e, solo nelle righe di `message`, `link` facoltativo, un percorso interno con la barra iniziale (`/chi-sono`): il valore diventa un link, che nel terminale esegue `cat /chi-sono` (o `cd /x && ls` per una cartella). Un link a un percorso che non esiste ferma la build. Nel valore si usano questi segnaposto:
+
+| Segnaposto | Dove | Valore |
+|---|---|---|
+| `{data}` | timbro e campi | data della canzone o del messaggio, `GG/MM/AAAA` |
+| `{ora}` | campi | ora di `receivedAt` (`HH:MM`), come è scritta, senza conversioni di fuso; manca senza `receivedAt` |
+| `{byte}` | campi | byte di `index.md` sul disco, frontmatter e a capo compresi |
+| `{controllo}` | campi | CRC-32 degli stessi byte, 8 cifre esadecimali maiuscole |
+| `{allegati}` | campi | numero di immagini accanto a `index.md`; manca quando è zero |
+
+Qui `{data}` è la data della canzone o del messaggio, non quella della canzone più recente come in `boot.rom`. Una riga con un segnaposto che manca non compare. Un segnaposto sconosciuto, o fuori posto (`{byte}` nel timbro), ferma la build. Le etichette si allineano con i puntini: il valore comincia alla colonna dell'etichetta più lunga fra `stamp` e `message` più 6 (`OPERATORE ..... guest`), uguale per canzoni e messaggi. Una riga riempita oltre 34 colonne ferma la build, con il percorso del contenuto nell'errore. Senza `reception` o senza `stamp` il timbro è `── 05/01/2026 ──`; senza `message` i messaggi non hanno campi.
 
 ## Suono
 

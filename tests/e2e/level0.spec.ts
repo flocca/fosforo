@@ -18,6 +18,20 @@ test("l'HTML statico della canzone mostra l'intro prima del titolo", async ({ re
   expect(intro).toBeLessThan(html.indexOf('Un giorno qualunque', html.indexOf('id="screen"')));
 });
 
+test("l'HTML statico di un messaggio mostra la cornice di ricezione", async ({ request }) => {
+  const html = await (await request.get('/messaggi/2026-01-05-prova')).text();
+  const plain = html.replace(/<[^>]+>/g, '');
+  expect(plain).toContain('RICEZIONE ..... 05/01/2026');
+  expect(plain).toContain('CONTROLLO .....');
+  expect(plain).toContain('ALLEGATI ...... 1');
+  expect(html).toMatch(/<a [^>]*href="\/chi-sono"[^>]*>(<span[^>]*>)?chi-sono(<\/span>)?<\/a>/);
+});
+
+test("l'HTML statico della canzone ha il timbro dal modello", async ({ request }) => {
+  const html = await (await request.get('/canzoni/2026-11-10')).text();
+  expect(html.replace(/<[^>]+>/g, '')).toContain('RICEZIONE ..... 10/11/2026');
+});
+
 test('la home linka le sezioni', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).toHaveAttribute('data-page', 'home');

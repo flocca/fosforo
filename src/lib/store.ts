@@ -8,7 +8,7 @@ import { parseFolderPage, type FolderPage, type Warning } from './folder-page';
 export type Item =
   | { kind: 'song'; path: string; data: Song; body: string }
   | { kind: 'book'; path: string; data: Book; note?: string }
-  | { kind: 'post'; path: string; data: Post; body: string; images?: Record<string, { width: number; height: number }> }
+  | { kind: 'post'; path: string; data: Post; body: string; images?: Record<string, { width: number; height: number }>; receipt?: Receipt }
   | { kind: 'page'; path: string; data: Page; body: string };
 
 export type Store = {
@@ -24,13 +24,15 @@ export type Store = {
 type Entry<T> = { slug: string; data: T; body: string };
 export type FolderFile = { file: string; raw?: string };
 type ImageSizes = Record<string, { width: number; height: number }>;
+// Valori veri del messaggio per l'intestazione di ricezione: byte e CRC-32 di index.md, immagini accanto.
+export type Receipt = { bytes: number; crc32: string; attachments: number };
 
 export type StoreInput = {
   songs: Entry<Song>[];
   books: { slug: string; data: Book }[];
   bookNotes?: { slug: string; body: string }[];
   goal?: Goal;
-  posts: (Entry<Post> & { images?: ImageSizes })[];
+  posts: (Entry<Post> & { images?: ImageSizes; receipt?: Receipt })[];
   pages: Entry<Page>[];
   // File letti dal disco, percorso relativo alla cartella dei contenuti: i `.md` della radice, del primo livello
   // delle cartelle tipizzate e delle cartelle dichiarate (con `raw`), più gli altri file delle cartelle dichiarate (senza).
@@ -183,7 +185,7 @@ export function buildStoreFrom(input: StoreInput): Store {
     for (const p of posts) {
       assertMarkdownBody(p.body, `messaggi/${p.slug}/index.md`);
       const path = `messaggi/${p.slug}`;
-      items.set(path, { kind: 'post', path, data: p.data, body: p.body, ...(p.images ? { images: p.images } : {}) });
+      items.set(path, { kind: 'post', path, data: p.data, body: p.body, ...(p.images ? { images: p.images } : {}), ...(p.receipt ? { receipt: p.receipt } : {}) });
       postNodes.push({ name: p.slug, path, type: 'file', title: p.data.title });
     }
     rootChildren.push({ name: 'messaggi', path: 'messaggi', type: 'dir', children: postNodes });
@@ -275,6 +277,8 @@ function nodeMap(root: FsNode): Map<string, FsNode> {
 
 export const findNode = (store: Store, path: string): FsNode | null => store.nodes.get(normalizePath(path)) ?? null;
 
+const IMAGE_FILE = /\.(jpe?g|png|webp|gif|avif|tiff?)$/i;
+
 // Dimensioni delle immagini accanto a un post dopo l'elaborazione della build
 // (scala di grigi, larghezza massima 640, proporzioni mantenute), per nome senza estensione.
 export async function postImageSizes(dir: string): Promise<ImageSizes> {
@@ -285,11 +289,30 @@ export async function postImageSizes(dir: string): Promise<ImageSizes> {
   const folder = join(contentDir(), 'messaggi', dir);
   const sizes: ImageSizes = {};
   for (const file of await readdir(folder).catch(() => [] as string[])) {
-    if (!/\.(jpe?g|png|webp|gif|avif|tiff?)$/i.test(file)) continue;
+    if (!IMAGE_FILE.test(file)) continue;
     const size = await imageSize(join(folder, file));
     if (size) sizes[file.replace(/\.[^.]+$/, '')] = size;
   }
   return sizes;
+}
+
+export const formatCrc32 = (n: number): string => n.toString(16).toUpperCase().padStart(8, '0');
+
+// Byte di index.md come sono sul disco (frontmatter e CR compresi), il loro CRC-32
+// e il numero di immagini accanto.
+export async function postReceipt(dir: string, base?: string): Promise<Receipt> {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { crc32 } = await import('node:zlib');
+  const root = base ?? (await import('./content-dir')).contentDir();
+  const folder = join(root, 'messaggi', dir);
+  const buf = await readFile(join(folder, 'index.md'));
+  const files = await readdir(folder);
+  return {
+    bytes: buf.length,
+    crc32: formatCrc32(crc32(buf)),
+    attachments: files.filter((f) => IMAGE_FILE.test(f)).length,
+  };
 }
 
 // Una sola costruzione per processo: in build ogni pagina e ogni endpoint chiedono lo store.
@@ -338,7 +361,7 @@ async function buildStoreUncached(): Promise<Store> {
     posts: await Promise.all(
       posts.map(async (e) => {
         const slug = e.id.replace(/^messaggi\//, '');
-        return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug) };
+        return { slug, data: e.data, body: e.body ?? '', images: await postImageSizes(slug), receipt: await postReceipt(slug) };
       }),
     ),
     pages: [],

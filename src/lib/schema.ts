@@ -1,5 +1,6 @@
 import { z } from 'astro/zod';
 import { PAGE_NAME, RESERVED_FOLDER_NAMES } from './claims';
+import { MESSAGE_PLACEHOLDERS, STAMP_PLACEHOLDERS, placeholdersIn } from './reception';
 import { introText, plainText } from './text';
 
 // Il YAML non quotato (date: 2026-11-10) viene letto come Date a mezzanotte UTC:
@@ -60,20 +61,73 @@ export const goalSchema = z
     path: ['since'],
   });
 
+// receivedAt non quotato diventa una Date YAML (perde offset e ora scritta): lo si rifiuta con un aiuto.
+const receivedAt = z.preprocess((v, ctx) => {
+  if (v instanceof Date) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'receivedAt va scritto tra virgolette: "2026-11-11T22:10:00+01:00"',
+    });
+    return z.NEVER;
+  }
+  return v;
+}, instant);
+
 export const postSchema = z
   .object({
     title: plainText,
     date,
+    receivedAt: receivedAt.optional(),
     description: plainText.optional(),
     draft: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .refine((p) => p.receivedAt === undefined || p.receivedAt.slice(0, 10) === p.date, {
+    message: 'receivedAt deve cadere nel giorno di date (stessi primi 10 caratteri)',
+    path: ['receivedAt'],
+  });
 
 export const pageSchema = z
   .object({ title: plainText, order: z.number().optional() })
   .strict();
 
 export const noteSchema = z.object({}).strict();
+
+// Righe della cornice di ricezione: etichetta, valore con segnaposto, link interno facoltativo.
+const receptionRow = z
+  .object({
+    label: plainText.min(1),
+    value: plainText.min(1),
+    link: z
+      .string()
+      .regex(/^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/, 'Link atteso come percorso interno con la barra iniziale (es. /chi-sono)')
+      .optional(),
+  })
+  .strict();
+
+const allowedIn =
+  (allowed: readonly string[], where: string) =>
+  (value: string, ctx: { addIssue: (issue: { code: 'custom'; message: string }) => void }) => {
+    for (const name of placeholdersIn(value)) {
+      if (!allowed.includes(name)) {
+        ctx.addIssue({ code: 'custom', message: `Segnaposto {${name}} non ammesso ${where} (ammessi: ${allowed.map((p) => `{${p}}`).join(', ')})` });
+      }
+    }
+  };
+
+const receptionSchema = z
+  .object({
+    stamp: receptionRow.optional(),
+    message: z.array(receptionRow).optional(),
+  })
+  .strict()
+  .superRefine((r, ctx) => {
+    if (r.stamp?.link !== undefined) {
+      ctx.addIssue({ code: 'custom', message: 'Il timbro non ha link: link vale solo nelle righe di message' });
+    }
+    if (r.stamp) allowedIn(STAMP_PLACEHOLDERS, 'nel timbro')(r.stamp.value, ctx);
+    for (const row of r.message ?? []) allowedIn(MESSAGE_PLACEHOLDERS, 'nei campi dei messaggi')(row.value, ctx);
+  });
 
 export const siteSchema = z
   .object({
@@ -108,6 +162,7 @@ export const siteSchema = z
         welcomeStatic: plainText.optional(),
       })
       .strict(),
+    reception: receptionSchema.optional(),
   })
   .strict()
   .superRefine((site, ctx) => {

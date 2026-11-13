@@ -1,15 +1,17 @@
 // Dal contenuto al testo del terminale: blocchi per ogni percorso.
 import type { Block, Span } from './blocks';
 import { listing } from './fs-tree';
-import { markdownToBlocks } from './markdown';
+import { internalCmd, markdownToBlocks } from './markdown';
+import { fillRow, valueColumn, type ReceptionValues } from './reception';
 import { findNode, type Item, type Store } from './store';
 import { formatDate, fromDate } from './dates';
 import { dailyRows, dailyTotals, formatDuration, progressBar, weeklyRows } from './reading';
 import type { Book } from './schema';
 
 // Markdown dei contenuti: i link interni a una cartella diventano `cd` + `ls`.
+const isDirIn = (store: Store) => (p: string) => findNode(store, p)?.type === 'dir';
 const md = (body: string, store: Store, imageBase: string, sizes?: Parameters<typeof markdownToBlocks>[1]['sizes']): Block[] =>
-  markdownToBlocks(body, { imageBase, sizes, isDir: (p) => findNode(store, p)?.type === 'dir' });
+  markdownToBlocks(body, { imageBase, sizes, isDir: isDirIn(store) });
 
 const line = (...spans: Span[]): Block => ({ type: 'line', spans });
 const text = (t: string, style?: Span['style']): Span => (style ? { text: t, style } : { text: t });
@@ -38,11 +40,53 @@ function rhythm(totals: Map<string, number>, end: string, withWeeks: boolean, la
   return out;
 }
 
+// Cornice di ricezione: colonna comune a timbro e campi, così canzoni e messaggi si allineano uguali.
+function receptionColumn(store: Store): number {
+  const r = store.site.reception;
+  return valueColumn([...(r?.stamp ? [r.stamp] : []), ...(r?.message ?? [])]);
+}
+
+// Timbro di canzoni e messaggi: dal modello se c'è, altrimenti `── data ──`. Tutto attenuato.
+function stamp(date: string, store: Store, where: string): Block {
+  const row = store.site.reception?.stamp;
+  const filled = row && fillRow(row, { data: formatDate(date) }, receptionColumn(store), where);
+  return line(text(filled ? filled.lead + filled.value : `── ${formatDate(date)} ──`, 'dim'));
+}
+
+// Campi del messaggio dopo il timbro: le righe con un valore mancante si saltano.
+function header(item: Extract<Item, { kind: 'post' }>, store: Store): Block[] {
+  const rows = store.site.reception?.message ?? [];
+  if (!rows.length) return [];
+  const { receipt, data } = item;
+  const values: ReceptionValues = {
+    data: formatDate(data.date),
+    ora: data.receivedAt?.slice(11, 16),
+    byte: receipt ? String(receipt.bytes) : undefined,
+    controllo: receipt?.crc32,
+    allegati: receipt?.attachments ? String(receipt.attachments) : undefined,
+  };
+  const column = receptionColumn(store);
+  const out: Block[] = [];
+  for (const row of rows) {
+    const filled = fillRow(row, values, column, item.path);
+    if (!filled) continue;
+    const value: Span = { text: filled.value, style: 'dim' };
+    if (filled.link) {
+      if (!findNode(store, filled.link.slice(1))) {
+        throw new Error(`${item.path}: il link ${filled.link} della cornice di ricezione non esiste nell'albero`);
+      }
+      value.cmd = internalCmd(filled.link, { isDir: isDirIn(store) });
+    }
+    out.push(line(text(filled.lead, 'dim'), value));
+  }
+  return out;
+}
+
 function song(item: Extract<Item, { kind: 'song' }>, store: Store): Block[] {
   const d = item.data;
-  const out: Block[] = [line(text(`── ${formatDate(d.date)} ──`, 'dim'))];
-  // L'intro, se c'è, a luce piena tra il timbro e il titolo.
-  if (d.intro) out.push(line(text(d.intro)), blank);
+  const out: Block[] = [stamp(d.date, store, item.path)];
+  // L'intro, se c'è, attenuata come la cornice, tra il timbro e il titolo.
+  if (d.intro) out.push(line(text(d.intro, 'dim')), blank);
   out.push(line(text(d.title, 'bold')), line(text(d.album ? `${d.artist} · ${d.album}` : d.artist)), blank);
   if (d.links.youtube) {
     out.push({ type: 'image', src: `/_img/canzoni/${d.date}.png`, alt: d.title, width: 640, height: 360 }, blank);
@@ -132,13 +176,17 @@ export function renderPath(path: string, store: Store): Block[] | null {
       return song(item, store);
     case 'book':
       return book(item, store);
-    case 'post':
+    case 'post': {
+      const rows = header(item, store);
       return [
+        stamp(item.data.date, store, item.path),
+        ...rows,
+        ...(rows.length ? [blank] : []),
         line(text(item.data.title, 'bold')),
-        line(text(formatDate(item.data.date), 'dim')),
         blank,
         ...md(item.body, store, `/_img/${item.path}`, item.images),
       ];
+    }
     case 'page':
       return [line(text(item.data.title, 'bold')), blank, ...md(item.body, store, `/_img/${item.path}`)];
   }
