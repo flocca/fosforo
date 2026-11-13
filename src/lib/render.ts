@@ -40,12 +40,10 @@ function rhythm(totals: Map<string, number>, end: string, withWeeks: boolean, la
 
 function song(item: Extract<Item, { kind: 'song' }>, store: Store): Block[] {
   const d = item.data;
-  const out: Block[] = [
-    line(text(`── ${formatDate(d.date)} ──`, 'dim')),
-    line(text(d.title, 'bold')),
-    line(text(d.album ? `${d.artist} · ${d.album}` : d.artist)),
-    blank,
-  ];
+  const out: Block[] = [line(text(`── ${formatDate(d.date)} ──`, 'dim'))];
+  // L'intro, se c'è, a luce piena tra il timbro e il titolo.
+  if (d.intro) out.push(line(text(d.intro)), blank);
+  out.push(line(text(d.title, 'bold')), line(text(d.album ? `${d.artist} · ${d.album}` : d.artist)), blank);
   if (d.links.youtube) {
     out.push({ type: 'image', src: `/_img/canzoni/${d.date}.png`, alt: d.title, width: 640, height: 360 }, blank);
   }

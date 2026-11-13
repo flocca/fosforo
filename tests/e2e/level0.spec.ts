@@ -11,6 +11,13 @@ test('la pagina di una canzone ha artista e link ad Apple Music', async ({ page 
   await expect(page.locator('body')).toHaveAttribute('data-page', 'item');
 });
 
+test("l'HTML statico della canzone mostra l'intro prima del titolo", async ({ request }) => {
+  const html = await (await request.get('/canzoni/2026-11-10')).text();
+  const intro = html.indexOf('Chiede di inoltrarla alle altre reti: eseguo.');
+  expect(intro).toBeGreaterThan(-1);
+  expect(intro).toBeLessThan(html.indexOf('Un giorno qualunque', html.indexOf('id="screen"')));
+});
+
 test('la home linka le sezioni', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).toHaveAttribute('data-page', 'home');
