@@ -1,4 +1,5 @@
 import { z } from 'astro/zod';
+import { MESSAGE_PLACEHOLDERS, STAMP_PLACEHOLDERS, placeholdersIn } from './reception';
 import { introText, plainText } from './text';
 
 // Il YAML non quotato (date: 2026-11-10) viene letto come Date a mezzanotte UTC:
@@ -74,6 +75,39 @@ export const pageSchema = z
 
 export const noteSchema = z.object({}).strict();
 
+// Righe della cornice di ricezione: etichetta, valore con segnaposto, link interno facoltativo.
+const receptionRow = z
+  .object({
+    label: plainText.min(1),
+    value: plainText.min(1),
+    link: z
+      .string()
+      .regex(/^\/[a-z0-9-]+(\/[a-z0-9-]+)*$/, 'Link atteso come percorso interno con la barra iniziale (es. /chi-sono)')
+      .optional(),
+  })
+  .strict();
+
+const allowedIn =
+  (allowed: readonly string[], where: string) =>
+  (value: string, ctx: { addIssue: (issue: { code: 'custom'; message: string }) => void }) => {
+    for (const name of placeholdersIn(value)) {
+      if (!allowed.includes(name)) {
+        ctx.addIssue({ code: 'custom', message: `Segnaposto {${name}} non ammesso ${where} (ammessi: ${allowed.map((p) => `{${p}}`).join(', ')})` });
+      }
+    }
+  };
+
+const receptionSchema = z
+  .object({
+    stamp: receptionRow.optional(),
+    message: z.array(receptionRow).optional(),
+  })
+  .strict()
+  .superRefine((r, ctx) => {
+    if (r.stamp) allowedIn(STAMP_PLACEHOLDERS, 'nel timbro')(r.stamp.value, ctx);
+    for (const row of r.message ?? []) allowedIn(MESSAGE_PLACEHOLDERS, 'nei campi dei messaggi')(row.value, ctx);
+  });
+
 export const siteSchema = z
   .object({
     host: z.string().min(1),
@@ -96,6 +130,7 @@ export const siteSchema = z
         welcomeStatic: plainText.optional(),
       })
       .strict(),
+    reception: receptionSchema.optional(),
   })
   .strict();
 

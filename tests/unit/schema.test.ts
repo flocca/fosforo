@@ -127,4 +127,43 @@ describe('siteSchema', () => {
   it('rifiuta entità HTML nella description', () => {
     expect(() => siteSchema.parse({ ...validSite, description: 'a &amp; b' })).toThrow();
   });
+
+  const reception = {
+    stamp: { label: 'RICEZIONE', value: '{data}' },
+    message: [
+      { label: 'OPERATORE', value: 'flocca' },
+      { label: 'DIMENSIONE', value: '{byte} byte' },
+      { label: 'CONTROLLO', value: '{controllo} OK' },
+      { label: 'ALLEGATI', value: '{allegati}' },
+      { label: 'RISPOSTE', value: 'rispondi', link: '/rispondi' },
+    ],
+  };
+
+  it('accetta un modello reception completo e lo lascia uguale', () => {
+    expect(siteSchema.parse({ ...validSite, reception }).reception).toEqual(reception);
+  });
+
+  it('rifiuta {byte} nel timbro', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { stamp: { label: 'RICEZIONE', value: '{byte}' } } })).toThrow(/byte/);
+  });
+
+  it('rifiuta un segnaposto sconosciuto nei campi', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'X', value: '{sconosciuto}' }] } })).toThrow(/sconosciuto/);
+  });
+
+  it("rifiuta un'etichetta vuota", () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: '', value: 'x' }] } })).toThrow();
+  });
+
+  it('rifiuta un link senza barra iniziale', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'R', value: 'x', link: 'rispondi' }] } })).toThrow();
+  });
+
+  it('rifiuta una chiave sconosciuta in una riga', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'R', value: 'x', colore: 'rosso' }] } })).toThrow();
+  });
+
+  it('rifiuta reception: null', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: null })).toThrow();
+  });
 });
