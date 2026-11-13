@@ -175,10 +175,13 @@ describe('pagine nelle cartelle', () => {
     );
   });
 
-  it('una pagina alla radice con il nome di un link blocca la build', () => {
+  it('una pagina alla radice con il nome di un link si salta con un avviso', () => {
     const input = full();
     input.pages.push({ slug: 'owlcavelabs', body: 'x', data: { title: 'O' } });
-    expect(() => buildStoreFrom(input)).toThrow(/owlcavelabs/);
+    const s = buildStoreFrom(input);
+    expect(findByPath(s.root, 'owlcavelabs')!.type).toBe('link');
+    expect(s.items.has('owlcavelabs')).toBe(false);
+    expect(s.warnings.map((w) => w.file)).toEqual(['owlcavelabs.md']);
   });
 
   it('un file fuori dalle cartelle delle pagine si salta con un avviso', () => {
@@ -196,5 +199,123 @@ describe('pagine nelle cartelle', () => {
   it('senza pagine nelle cartelle: nessun avviso', () => {
     const { folderFiles: _, ...input } = full();
     expect(buildStoreFrom(input).warnings).toEqual([]);
+  });
+});
+
+describe('cartelle libere e pagine alla radice', () => {
+  const md = (file: string, title = file, order?: number) => ({
+    file,
+    raw: `---\ntitle: ${title}\n${order !== undefined ? `order: ${order}\n` : ''}---\nTesto.`,
+  });
+  const freeSite = { ...site, cartelle: [{ name: 'documenti', title: 'Carte' }, { name: 'giochi' }] };
+  const input = (folderFiles: { file: string; raw?: string }[], cartelle = freeSite.cartelle): StoreInput => ({
+    ...full(), site: { ...freeSite, cartelle }, folderFiles,
+  });
+  const onlyDocs = [{ name: 'documenti', title: 'Carte' }];
+  const names = (s: ReturnType<typeof buildStoreFrom>, path: string) =>
+    findByPath(s.root, path)!.children!.map((c) => c.name);
+  const warned = (s: ReturnType<typeof buildStoreFrom>) => s.warnings.map((w) => w.file);
+
+  it('ordine della radice: tipizzate, cartelle dichiarate, pagine, link', () => {
+    const s = buildStoreFrom(input([md('documenti/a.md'), md('giochi/b.md'), md('leggimi.md')]));
+    expect(names(s, '')).toEqual(
+      ['canzone-del-giorno', 'canzoni', 'lettura', 'messaggi', 'documenti', 'giochi', 'chi-sono', 'leggimi', 'owlcavelabs'],
+    );
+    expect(findByPath(s.root, 'documenti')).toMatchObject({ type: 'dir', title: 'Carte' });
+    expect('title' in findByPath(s.root, 'giochi')!).toBe(false);
+    expect(s.warnings).toEqual([]);
+  });
+
+  it('a ogni profondità: sottocartelle per nome, poi pagine per order e nome, senza section', () => {
+    const s = buildStoreFrom(
+      input([md('documenti/z.md'), md('documenti/a.md', 'A', 1), md('documenti/sotto/b.md'), md('documenti/sotto/piu/c.md')], onlyDocs),
+    );
+    expect(names(s, 'documenti')).toEqual(['sotto', 'a', 'z']);
+    expect(names(s, 'documenti/sotto')).toEqual(['piu', 'b']);
+    expect(findNode(s, 'documenti/sotto/piu/c')).toMatchObject({ type: 'file', path: 'documenti/sotto/piu/c' });
+    expect(s.items.get('documenti/sotto/piu/c')).toMatchObject({ kind: 'page', path: 'documenti/sotto/piu/c' });
+    const all = allNodes(findByPath(s.root, 'documenti')!);
+    expect(all.every((n) => !('section' in n))).toBe(true);
+    expect(s.nodes.size).toBe(allNodes(s.root).length);
+  });
+
+  it('frontmatter rotto in una cartella libera: mostrata con il nome del file, un avviso', () => {
+    const s = buildStoreFrom(input([{ file: 'documenti/nota.md', raw: 'Solo testo.' }], onlyDocs));
+    expect(s.items.get('documenti/nota')).toMatchObject({ kind: 'page', data: { title: 'nota' } });
+    expect(warned(s)).toEqual(['documenti/nota.md']);
+  });
+
+  it('un file non markdown si salta: tipo non ancora gestito', () => {
+    const s = buildStoreFrom(input([md('documenti/a.md'), { file: 'documenti/foto.jpg' }], onlyDocs));
+    expect(names(s, 'documenti')).toEqual(['a']);
+    expect(s.warnings).toHaveLength(1);
+    expect(s.warnings[0]).toMatchObject({ file: 'documenti/foto.jpg' });
+    expect(s.warnings[0].message).toMatch(/non ancora gestito/);
+  });
+
+  it('nomi non validi di file e sottocartelle si saltano, un avviso ciascuno', () => {
+    const s = buildStoreFrom(input([md('documenti/a.md'), md('documenti/Brutto.md'), md('documenti/2025/x.md')], onlyDocs));
+    expect(names(s, 'documenti')).toEqual(['a']);
+    expect(warned(s).sort()).toEqual(['documenti/2025/x.md', 'documenti/Brutto.md']);
+  });
+
+  it('x.md accanto a x/: vince la cartella, la pagina si salta', () => {
+    const s = buildStoreFrom(input([md('documenti/x.md'), md('documenti/x/y.md')], onlyDocs));
+    expect(findByPath(s.root, 'documenti/x')!.type).toBe('dir');
+    expect(names(s, 'documenti/x')).toEqual(['y']);
+    expect(s.items.has('documenti/x')).toBe(false);
+    expect(warned(s)).toEqual(['documenti/x.md']);
+  });
+
+  it('una cartella dichiarata vuota o senza pagine non compare, un avviso, niente errore', () => {
+    for (const files of [[md('documenti/a.md')], [md('documenti/a.md'), { file: 'giochi/foto.jpg' }]]) {
+      const s = buildStoreFrom(input(files));
+      expect(findByPath(s.root, 'giochi')).toBeNull();
+      const w = s.warnings.find((x) => x.file === 'giochi/');
+      expect(w?.message).toMatch(/vuota|assente/);
+    }
+  });
+
+  it('una sottocartella senza pagine pubblicabili non compare', () => {
+    const s = buildStoreFrom(input([md('documenti/a.md'), { file: 'documenti/vuota/foto.jpg' }], onlyDocs));
+    expect(findByPath(s.root, 'documenti/vuota')).toBeNull();
+    expect(warned(s)).toEqual(['documenti/vuota/foto.jpg']);
+  });
+
+  it('un file in una cartella non dichiarata non diventa un nodo', () => {
+    const s = buildStoreFrom(input([md('documenti/a.md'), md('giochi/b.md'), md('docs/piano.md')]));
+    expect(findByPath(s.root, 'docs')).toBeNull();
+    expect(warned(s)).toEqual(['docs/piano.md']);
+  });
+
+  it('pagine alla radice: valide pubblicate, sbagliate saltate e mai mostrate', () => {
+    const s = buildStoreFrom(
+      input([
+        md('documenti/a.md'), md('giochi/b.md'),
+        md('leggimi.md', 'Leggimi'),
+        { file: 'appunti.md', raw: 'Appunto privato.' },
+        md('NOTE.md'),
+      ]),
+    );
+    expect(s.items.get('leggimi')).toMatchObject({ kind: 'page', data: { title: 'Leggimi' } });
+    expect(s.items.has('appunti')).toBe(false);
+    expect(findByPath(s.root, 'appunti')).toBeNull();
+    expect(findByPath(s.root, 'NOTE')).toBeNull();
+    expect(warned(s).sort()).toEqual(['NOTE.md', 'appunti.md']);
+    for (const w of s.warnings) {
+      expect(w.message).toMatch(/saltata/);
+      expect(w.message).not.toMatch(/mostrat/);
+    }
+  });
+
+  it('pagina alla radice con il nome di un link, di una cartella dichiarata o di un elemento tipizzato: si salta', () => {
+    const clashes = ['owlcavelabs', 'documenti', 'canzone-del-giorno', 'lettura'];
+    const s = buildStoreFrom(input([md('documenti/a.md'), md('giochi/b.md'), ...clashes.map((n) => md(`${n}.md`))]));
+    expect(findByPath(s.root, 'owlcavelabs')!.type).toBe('link');
+    expect(findByPath(s.root, 'documenti')!.type).toBe('dir');
+    expect(findByPath(s.root, 'canzone-del-giorno')!.type).toBe('alias');
+    expect(findByPath(s.root, 'lettura')!.type).toBe('dir');
+    for (const n of clashes) expect(s.items.get(n)).toBeUndefined();
+    expect(warned(s).sort()).toEqual(clashes.map((n) => `${n}.md`).sort());
   });
 });

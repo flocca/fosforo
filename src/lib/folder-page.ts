@@ -11,7 +11,12 @@ const FRONTMATTER = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(\r?\n|$)/;
 const FALLBACK = 'mostrato con il nome del file come titolo';
 
 // `file` è relativo alla cartella dei contenuti, es. `canzoni/leggimi.md`.
-export function parseFolderPage(file: string, raw: string): { page?: FolderPage; warnings: Warning[] } {
+// `onInvalid: 'skip'` (pagine alla radice): una pagina sbagliata si salta invece di mostrarla così com'è.
+export function parseFolderPage(
+  file: string,
+  raw: string,
+  onInvalid: 'fallback' | 'skip' = 'fallback',
+): { page?: FolderPage; warnings: Warning[] } {
   const parts = file.split('/');
   const dir = parts.slice(0, -1).join('/');
   const name = (parts.at(-1) ?? '').replace(/\.md$/, '');
@@ -24,10 +29,10 @@ export function parseFolderPage(file: string, raw: string): { page?: FolderPage;
   const text = raw.replace(/^﻿/, '');
   const match = FRONTMATTER.exec(text);
   const body = match ? text.slice(match[0].length) : text;
-  const fallback = (reason: string) => ({
-    page: { dir, name, data: { title: name }, body },
-    warnings: [{ file, message: `${reason}, ${FALLBACK}` }],
-  });
+  const fallback = (reason: string): { page?: FolderPage; warnings: Warning[] } =>
+    onInvalid === 'skip'
+      ? { warnings: [{ file, message: `${reason}: pagina saltata` }] }
+      : { page: { dir, name, data: { title: name }, body }, warnings: [{ file, message: `${reason}, ${FALLBACK}` }] };
 
   if (!match) return fallback('frontmatter assente o senza la riga --- di chiusura');
   let yaml: unknown;
