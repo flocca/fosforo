@@ -14,11 +14,14 @@ const OBSIDIAN: [RegExp, string][] = [
   [/^[ \t]*>[ \t]*\[!/m, '> [! (callout)'],
 ];
 
+// Nome del primo costrutto Obsidian nel corpo markdown, o null.
+export function obsidianSyntax(body: string): string | null {
+  for (const [re, name] of OBSIDIAN) if (re.test(body)) return name;
+  return null;
+}
+
 // Rifiuta la sintassi Obsidian nel corpo markdown; il file serve al messaggio.
 export function assertMarkdownBody(body: string, file: string): void {
-  for (const [re, name] of OBSIDIAN) {
-    if (re.test(body)) {
-      throw new Error(`${file}: sintassi Obsidian non supportata: ${name}. Usa markdown standard.`);
-    }
-  }
+  const name = obsidianSyntax(body);
+  if (name) throw new Error(`${file}: sintassi Obsidian non supportata: ${name}. Usa markdown standard.`);
 }
