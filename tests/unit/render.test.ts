@@ -253,9 +253,18 @@ describe('cornice di ricezione', () => {
     expect(b).toContain('DIMENSIONE .... 290 byte');
   });
 
-  it('link a un percorso inesistente: errore con il link', () => {
-    const bad = { ...reception, message: [{ label: 'RISPOSTE', value: 'x', link: '/nope' }] };
-    expect(() => renderPath('messaggi/2026-01-05-prova', build({ reception: bad }))).toThrow(/\/nope/);
+  it('link a un percorso inesistente: avviso su site.yaml e valore senza link', () => {
+    const bad = { ...reception, message: [{ label: 'RISPOSTE', value: 'rispondi', link: '/nope' }] };
+    const s = build({ reception: bad });
+    expect(s.warnings).toContainEqual({ file: 'site.yaml', message: expect.stringMatching(/\/nope/) });
+    const b = renderPath('messaggi/2026-01-05-prova', s)!;
+    const row = b.find((x) => txt(x).startsWith('RISPOSTE'))!;
+    expect(txt(row)).toBe('RISPOSTE ..... rispondi');
+    expect((row as any).spans.every((x: any) => x.cmd === undefined && x.style === 'dim')).toBe(true);
+  });
+
+  it('link esistente: nessun avviso', () => {
+    expect(rs.warnings).toEqual([]);
   });
 
   it('riga oltre 34 colonne: errore con il percorso del messaggio', () => {
