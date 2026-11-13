@@ -1,10 +1,10 @@
 // Elenco dei nodi dell'albero e metadati delle pagine statiche.
 import type { Block } from './blocks';
 import { formatDate } from './dates';
-import { findByPath, type FsNode } from './fs-tree';
+import type { FsNode } from './fs-tree';
 import { markdownToBlocks } from './markdown';
 import { renderPath } from './render';
-import type { Store } from './store';
+import { findNode, type Store } from './store';
 
 export function allNodes(root: FsNode): FsNode[] {
   return [root, ...(root.children ?? []).flatMap(allNodes)];
@@ -42,7 +42,7 @@ const firstText = (blocks: Block[]): string => {
 const clip = (s: string, n = 160) => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 
 export function pageMeta(path: string, store: Store): PageMeta | null {
-  const node = findByPath(store.root, path);
+  const node = findNode(store, path);
   if (!node) return null;
   const host = store.site.host;
   if (node.path === '') {

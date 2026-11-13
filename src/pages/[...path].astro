@@ -1,7 +1,6 @@
 ---
 import Monitor from '../layouts/Monitor.astro';
-import { buildStore } from '../lib/store';
-import { findByPath } from '../lib/fs-tree';
+import { buildStore, findNode } from '../lib/store';
 import { renderPath } from '../lib/render';
 import { level0Html, promptCommand } from '../lib/level0';
 import { pageMeta, pageNodes } from '../lib/static-paths';
@@ -17,7 +16,7 @@ const store = await buildStore();
 const path = Astro.params.path as string;
 const meta = pageMeta(path, store)!;
 const { host, user } = store.site;
-const isDir = findByPath(store.root, path)?.type === 'dir';
+const isDir = findNode(store, path)?.type === 'dir';
 const html = level0Html(
   [{ text: `${user}@${host} ~ $ `, style: 'dim' }, { text: promptCommand(path, isDir) }],
   renderPath(path, store) ?? [],

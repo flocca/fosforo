@@ -1,9 +1,8 @@
 // `/og/<percorso>.png`: anteprima social 1200x630 (home in `/og/home.png`).
 import type { APIRoute } from 'astro';
 import { ogImage } from '../../lib/cards';
-import { findByPath } from '../../lib/fs-tree';
 import { pageNodes } from '../../lib/static-paths';
-import { buildStore } from '../../lib/store';
+import { buildStore, findNode } from '../../lib/store';
 import { fetchThumbnail, youtubeId } from '../../lib/youtube';
 
 export async function getStaticPaths() {
@@ -29,7 +28,7 @@ export const GET: APIRoute = async ({ params }) => {
   } else if (item) {
     body = await ogImage({ title: item.data.title, host }, null, path);
   } else {
-    const node = path === 'home' ? undefined : findByPath(store.root, path);
+    const node = path === 'home' ? undefined : findNode(store, path);
     const title = !node ? host : node.type === 'dir' ? `${node.name}/` : (node.title ?? node.name);
     body = await ogImage({ title, host }, null, path);
   }
