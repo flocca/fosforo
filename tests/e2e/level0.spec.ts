@@ -92,3 +92,18 @@ test.describe('404 con JavaScript', () => {
     await expect(page.locator('#back')).toHaveAttribute('href', '/');
   });
 });
+
+test('la cartella delle canzoni elenca prima le pagine', async ({ page }) => {
+  await page.goto('/canzoni');
+  const pre = page.locator('#screen pre.term');
+  const hrefs = await pre.locator('a').evaluateAll((as) => as.slice(0, 2).map((a) => a.getAttribute('href')));
+  expect(hrefs).toEqual(['/canzoni/leggimi', '/canzoni/2026-11-10']);
+  const lines = (await pre.textContent())!.split('\n');
+  expect(lines[1]).toMatch(/^leggimi\s+Nota sulle canzoni$/);
+  expect(lines[2]).toBe('');
+  expect(lines[3]).toMatch(/^2026-11-10\b/);
+
+  await page.goto('/canzoni/leggimi');
+  await expect(pre).toContainText('Nota sulle canzoni');
+  await expect(pre).not.toContainText('── ');
+});
