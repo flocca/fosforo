@@ -19,7 +19,7 @@ const stemOf = (url: string) => {
 };
 
 // Link interno -> comando del terminale: cartella `cd /x && ls`, altrimenti `cat /x`.
-function internalCmd(url: string, opts: Opts): string {
+export function internalCmd(url: string, opts: { isDir?: (path: string) => boolean }): string {
   const path = url.split(/[?#]/)[0].replace(/^\/+|\/+$/g, '');
   if (opts.isDir?.(path)) return path ? `cd /${path} && ls` : 'cd / && ls';
   return `cat ${url}`;

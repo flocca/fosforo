@@ -117,9 +117,12 @@ describe('renderPath', () => {
   });
   it('post', () => {
     const b = renderPath('messaggi/2026-01-05-prova', store)!;
-    expect(txt(b[0])).toBe('Un post di prova');
-    expect((b[0] as any).spans[0].style).toBe('bold');
-    expect(txt(b[1])).toBe('05/01/2026');
+    expect(txt(b[0])).toBe('── 05/01/2026 ──');
+    expect((b[0] as any).spans.every((x: any) => x.style === 'dim')).toBe(true);
+    expect(txt(b[1])).toBe('Un post di prova');
+    expect((b[1] as any).spans[0].style).toBe('bold');
+    expect(b[2].type).toBe('blank');
+    expect(lines(b)).not.toContain('05/01/2026');
     const link = spans(b).find((s) => s.text === 'chi sono')!;
     expect(link.cmd).toBe('cat /chi-sono');
     expect(link.href).toBeUndefined();
@@ -173,5 +176,98 @@ describe('immagini dei post', () => {
     const s = buildStoreFrom({ songs: [], books: [], pages: [], site: store.site, posts: [{ slug: 'p', body: '![a](foto.jpg)', data: { title: 'P', date: '2026-01-01', draft: false }, images: { foto: { width: 640, height: 480 } } }] });
     const img = renderPath('messaggi/p', s)!.find((x) => x.type === 'image') as any;
     expect(img).toMatchObject({ width: 640, height: 480 });
+  });
+});
+
+describe('cornice di ricezione', () => {
+  const reception = {
+    stamp: { label: 'RICEZIONE', value: '{data}' },
+    message: [
+      { label: 'OPERATORE', value: 'flocca' },
+      { label: 'DIMENSIONE', value: '{byte} byte' },
+      { label: 'CONTROLLO', value: '{controllo} OK' },
+      { label: 'ALLEGATI', value: '{allegati}' },
+      { label: 'ORA', value: '{ora}' },
+      { label: 'RISPOSTE', value: 'chi-sono', link: '/chi-sono' },
+    ],
+  };
+  const songItem = (store.items.get('canzoni/2026-11-10') as any).data;
+  const postItem = store.items.get('messaggi/2026-01-05-prova') as any;
+  const build = (opts: { reception?: any; post?: any; receipt?: any; intro?: string }) =>
+    buildStoreFrom({
+      songs: [{ slug: '2026-11-10', body: 'Una nota.', data: { ...songItem, ...(opts.intro ? { intro: opts.intro } : {}) } }],
+      books: [],
+      posts: [{
+        slug: '2026-01-05-prova',
+        body: postItem.body,
+        data: { ...postItem.data, ...opts.post },
+        ...(opts.receipt ? { receipt: opts.receipt } : {}),
+      }],
+      pages: [{ slug: 'chi-sono', body: 'ciao', data: { title: 'Chi sono' } }],
+      site: { ...store.site, ...(opts.reception ? { reception: opts.reception } : {}) },
+    });
+  const rs = build({ reception, receipt: { bytes: 290, crc32: '0A07F248', attachments: 1 }, post: { receivedAt: '2026-01-05T09:05:00+01:00' } });
+  const allDim = (b: Block) => b.type === 'line' && b.spans.every((x) => x.style === 'dim');
+
+  it('canzone: timbro dal modello, tutto attenuato', () => {
+    const b = renderPath('canzoni/2026-11-10', rs)!;
+    expect(txt(b[0])).toBe('RICEZIONE ..... 10/11/2026');
+    expect(allDim(b[0])).toBe(true);
+    expect(txt(b[1])).toBe('Un giorno qualunque');
+  });
+
+  it("canzone con intro: timbro, intro a luce piena, riga vuota, titolo", () => {
+    const b = renderPath('canzoni/2026-11-10', build({ reception, intro: 'Ciao a tutti.' }))!;
+    expect(txt(b[0])).toBe('RICEZIONE ..... 10/11/2026');
+    expect(txt(b[1])).toBe('Ciao a tutti.');
+    expect((b[1] as any).spans[0].style).toBeUndefined();
+    expect(b[2].type).toBe('blank');
+    expect(txt(b[3])).toBe('Un giorno qualunque');
+  });
+
+  it('messaggio: timbro, campi attenuati, riga vuota, titolo, riga vuota, corpo', () => {
+    const b = renderPath('messaggi/2026-01-05-prova', rs)!;
+    expect(lines(b.slice(0, 7))).toEqual([
+      'RICEZIONE ..... 05/01/2026',
+      'OPERATORE ..... flocca',
+      'DIMENSIONE .... 290 byte',
+      'CONTROLLO ..... 0A07F248 OK',
+      'ALLEGATI ...... 1',
+      'ORA ........... 09:05',
+      'RISPOSTE ...... chi-sono',
+    ]);
+    expect(b.slice(0, 7).every(allDim)).toBe(true);
+    const link = (b[6] as any).spans.find((x: any) => x.text === 'chi-sono');
+    expect(link.cmd).toBe('cat /chi-sono');
+    expect(b[7].type).toBe('blank');
+    expect(txt(b[8])).toBe('Un post di prova');
+    expect((b[8] as any).spans[0].style).toBe('bold');
+    expect(b[9].type).toBe('blank');
+    expect(lines(b.slice(10)).join('\n')).toContain('chi sono');
+  });
+
+  it('senza receivedAt e senza allegati: righe ORA e ALLEGATI assenti', () => {
+    const b = lines(renderPath('messaggi/2026-01-05-prova', build({ reception, receipt: { bytes: 290, crc32: '0A07F248', attachments: 0 } }))!);
+    expect(b.some((l) => l.startsWith('ORA '))).toBe(false);
+    expect(b.some((l) => l.startsWith('ALLEGATI '))).toBe(false);
+    expect(b).toContain('DIMENSIONE .... 290 byte');
+  });
+
+  it('link a un percorso inesistente: errore con il link', () => {
+    const bad = { ...reception, message: [{ label: 'RISPOSTE', value: 'x', link: '/nope' }] };
+    expect(() => renderPath('messaggi/2026-01-05-prova', build({ reception: bad }))).toThrow(/\/nope/);
+  });
+
+  it('riga oltre 34 colonne: errore con il percorso del messaggio', () => {
+    const bad = { message: [{ label: 'OPERATORE', value: 'x'.repeat(30) }] };
+    expect(() => renderPath('messaggi/2026-01-05-prova', build({ reception: bad }))).toThrow(/messaggi\/2026-01-05-prova/);
+  });
+
+  it('solo message: timbro di oggi e colonna dalle etichette dei campi', () => {
+    const b = renderPath('messaggi/2026-01-05-prova', build({ reception: { message: [{ label: 'OP', value: 'flocca' }] } }))!;
+    expect(txt(b[0])).toBe('── 05/01/2026 ──');
+    expect(txt(b[1])).toBe('OP .... flocca');
+    expect(b[2].type).toBe('blank');
+    expect(txt(b[3])).toBe('Un post di prova');
   });
 });
