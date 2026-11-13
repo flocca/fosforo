@@ -24,3 +24,28 @@ describe('pageMeta della home', () => {
     expect(pageMeta('', storeWith({}))!.description).toBe('h: canzoni, letture e pagine, in forma di terminale.');
   });
 });
+
+describe('pageMeta dei messaggi', () => {
+  const storeWithPost = (description?: string) =>
+    buildStoreFrom({
+      songs: [],
+      books: [],
+      pages: [],
+      site: storeWith({}).site,
+      posts: [
+        {
+          slug: '2026-01-05-prova',
+          body: 'Prima riga del messaggio.\n\nSeconda.',
+          data: { title: 'Prova', date: '2026-01-05', draft: false, ...(description ? { description } : {}) },
+        },
+      ],
+    });
+
+  it('senza description: il primo paragrafo del corpo, non la data', () => {
+    expect(pageMeta('messaggi/2026-01-05-prova', storeWithPost())!.description).toBe('Prima riga del messaggio.');
+  });
+
+  it('con description: la description', () => {
+    expect(pageMeta('messaggi/2026-01-05-prova', storeWithPost('Una prova.'))!.description).toBe('Una prova.');
+  });
+});

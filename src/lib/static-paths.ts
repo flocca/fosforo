@@ -2,6 +2,7 @@
 import type { Block } from './blocks';
 import { formatDate } from './dates';
 import { findByPath, type FsNode } from './fs-tree';
+import { markdownToBlocks } from './markdown';
 import { renderPath } from './render';
 import type { Store } from './store';
 
@@ -27,8 +28,9 @@ export type PageMeta = {
   aliasTarget?: string;
 };
 
+// Prima riga di testo non vuota dei blocchi dati.
 const firstText = (blocks: Block[]): string => {
-  for (const b of blocks.slice(1)) {
+  for (const b of blocks) {
     if (b.type === 'line') {
       const t = b.spans.map((s) => s.text).join('').trim();
       if (t) return t;
@@ -65,9 +67,11 @@ export function pageMeta(path: string, store: Store): PageMeta | null {
   } else if (item?.kind === 'book') {
     description = `Lettura: ${item.data.title}, di ${item.data.authors.join(', ')}`;
   } else if (item?.kind === 'post') {
-    description = item.data.description ?? firstText(renderPath(node.path, store) ?? []);
+    // senza description: il primo paragrafo del corpo, mai la riga con la data o un'intestazione
+    description = item.data.description ?? firstText(markdownToBlocks(item.body, { imageBase: '' }));
   } else if (item?.kind === 'page') {
-    description = firstText(renderPath(node.path, store) ?? []);
+    // il blocco 0 è il titolo
+    description = firstText((renderPath(node.path, store) ?? []).slice(1));
   } else if (node.type === 'dir') {
     description = `Cartella /${node.path} di ${host}`;
   } else {
