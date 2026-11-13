@@ -93,10 +93,29 @@ test.describe('404 con JavaScript', () => {
     await expect(page.locator('#back')).toHaveText('ls /lettura');
   });
 
-  test('un altro percorso inesistente rimanda alla home', async ({ page }) => {
+  test('un messaggio inesistente rimanda a /messaggi', async ({ page }) => {
     await page.goto('/messaggi/non-c-e');
     await expect(page.locator('#screen')).toContainText('cat: /messaggi/non-c-e: file o cartella inesistente');
+    await expect(page.locator('#back')).toHaveAttribute('href', '/messaggi');
+    await expect(page.locator('#back')).toHaveText('ls /messaggi');
+  });
+
+  test('un percorso fuori da ogni cartella rimanda alla home', async ({ page }) => {
+    await page.goto('/nessuna/cartella');
     await expect(page.locator('#back')).toHaveAttribute('href', '/');
+    await expect(page.locator('#back')).toHaveText('ls /');
+  });
+
+  test('sotto un file rimanda alla sua cartella', async ({ page }) => {
+    await page.goto('/canzoni/2026-11-10/x');
+    await expect(page.locator('#back')).toHaveAttribute('href', '/canzoni');
+    await expect(page.locator('#back')).toHaveText('ls /canzoni');
+  });
+
+  test('una sottocartella mancante di una cartella libera rimanda alla cartella', async ({ page }) => {
+    await page.goto('/documenti/manca');
+    await expect(page.locator('#back')).toHaveAttribute('href', '/documenti');
+    await expect(page.locator('#back')).toHaveText('ls /documenti');
   });
 });
 

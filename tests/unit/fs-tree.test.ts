@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findByPath, listing, resolvePath } from '../../src/lib/fs-tree';
+import { findByPath, listing, nearestDir, resolvePath } from '../../src/lib/fs-tree';
 import { buildStoreFrom, findNode, type StoreInput } from '../../src/lib/store';
 import { allNodes } from '../../src/lib/static-paths';
 import type { Book, Song } from '../../src/lib/schema';
@@ -317,5 +317,30 @@ describe('cartelle libere e pagine alla radice', () => {
     expect(findByPath(s.root, 'lettura')!.type).toBe('dir');
     for (const n of clashes) expect(s.items.get(n)).toBeUndefined();
     expect(warned(s).sort()).toEqual(clashes.map((n) => `${n}.md`).sort());
+  });
+});
+
+describe('nearestDir', () => {
+  const root = buildStoreFrom(full()).root;
+
+  it('la cartella esistente più vicina tra gli antenati', () => {
+    expect(nearestDir(root, 'lettura/nope')).toBe('lettura');
+    expect(nearestDir(root, 'canzoni/2026-11-10/x')).toBe('canzoni');
+    expect(nearestDir(root, 'nope/deeper')).toBe('');
+    expect(nearestDir(root, '/lettura/nope/')).toBe('lettura');
+  });
+
+  it('il percorso stesso non conta', () => {
+    expect(nearestDir(root, 'canzoni')).toBe('');
+  });
+
+  it('dentro una cartella libera', () => {
+    const s = buildStoreFrom({
+      ...full(),
+      site: { ...site, cartelle: [{ name: 'documenti' }] },
+      folderFiles: [{ file: 'documenti/sotto/b.md', raw: '---\ntitle: B\n---\nTesto.' }],
+    });
+    expect(nearestDir(s.root, 'documenti/sotto/manca/x')).toBe('documenti/sotto');
+    expect(nearestDir(s.root, 'documenti/manca')).toBe('documenti');
   });
 });
