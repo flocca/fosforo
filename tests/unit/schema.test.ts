@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bookSchema, goalSchema, siteSchema, songSchema } from '../../src/lib/schema';
+import { bookSchema, goalSchema, postSchema, siteSchema, songSchema } from '../../src/lib/schema';
 import { assertMarkdownBody } from '../../src/lib/text';
 
 const validSong = {
@@ -126,5 +126,75 @@ describe('siteSchema', () => {
 
   it('rifiuta entità HTML nella description', () => {
     expect(() => siteSchema.parse({ ...validSite, description: 'a &amp; b' })).toThrow();
+  });
+
+  const reception = {
+    stamp: { label: 'RICEZIONE', value: '{data}' },
+    message: [
+      { label: 'OPERATORE', value: 'flocca' },
+      { label: 'DIMENSIONE', value: '{byte} byte' },
+      { label: 'CONTROLLO', value: '{controllo} OK' },
+      { label: 'ALLEGATI', value: '{allegati}' },
+      { label: 'RISPOSTE', value: 'rispondi', link: '/rispondi' },
+    ],
+  };
+
+  it('accetta un modello reception completo e lo lascia uguale', () => {
+    expect(siteSchema.parse({ ...validSite, reception }).reception).toEqual(reception);
+  });
+
+  it('rifiuta {byte} nel timbro', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { stamp: { label: 'RICEZIONE', value: '{byte}' } } })).toThrow(/byte/);
+  });
+
+  it('rifiuta un segnaposto sconosciuto nei campi', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'X', value: '{sconosciuto}' }] } })).toThrow(/sconosciuto/);
+  });
+
+  it("rifiuta un'etichetta vuota", () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: '', value: 'x' }] } })).toThrow();
+  });
+
+  it('rifiuta un link senza barra iniziale', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'R', value: 'x', link: 'rispondi' }] } })).toThrow();
+  });
+
+  it('rifiuta una chiave sconosciuta in una riga', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { message: [{ label: 'R', value: 'x', colore: 'rosso' }] } })).toThrow();
+  });
+
+  it('rifiuta un link nel timbro', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: { stamp: { label: 'RICEZIONE', value: '{data}', link: '/chi-sono' } } })).toThrow(/timbro/);
+  });
+
+  it('rifiuta reception: null', () => {
+    expect(() => siteSchema.parse({ ...validSite, reception: null })).toThrow();
+  });
+});
+
+describe('postSchema', () => {
+  const post = { title: 'Hello world', date: '2026-11-11' };
+
+  it('accetta receivedAt con offset e lo lascia uguale', () => {
+    expect(postSchema.parse({ ...post, receivedAt: '2026-11-11T22:10:00+01:00' }).receivedAt).toBe('2026-11-11T22:10:00+01:00');
+  });
+
+  it('rifiuta receivedAt letto da YAML come data e chiede le virgolette', () => {
+    const r = postSchema.safeParse({ ...post, receivedAt: new Date('2026-11-11T21:10:00Z') });
+    expect(r.success).toBe(false);
+    expect(r.error!.issues.map((i) => i.message).join(' ')).toMatch(/virgolette/);
+  });
+
+  it('rifiuta receivedAt senza offset', () => {
+    expect(() => postSchema.parse({ ...post, receivedAt: '2026-11-11T22:10:00' })).toThrow();
+  });
+
+  it('rifiuta receivedAt in un giorno diverso da date', () => {
+    expect(() => postSchema.parse({ ...post, receivedAt: '2026-11-12T00:30:00+01:00' })).toThrow();
+    expect(() => postSchema.parse({ ...post, date: '2026-11-12', receivedAt: '2026-11-11T23:30:00+01:00' })).toThrow();
+  });
+
+  it('rifiuta receivedAt: null', () => {
+    expect(() => postSchema.parse({ ...post, receivedAt: null })).toThrow();
   });
 });
