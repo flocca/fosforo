@@ -34,3 +34,8 @@ export async function countAudioContexts(page: Page) {
   });
 }
 export const audioContexts = (page: Page) => page.evaluate(() => (window as unknown as { audioContexts: AudioContext[] }).audioContexts.length);
+// i segni visibili dell'icona del suono: le onde (una per livello) e la croce
+export const iconMarks = (page: Page) =>
+  page.locator('.sound-button').evaluate((b) =>
+    ['.wave-1', '.wave-2', '.wave-3', '.cross'].filter((sel) => getComputedStyle(b.querySelector(sel)!).display !== 'none'),
+  );

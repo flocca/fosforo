@@ -1,6 +1,7 @@
 // Telefono: tocchi, comandi rapidi, tastiera solo su richiesta, nessuno scroll orizzontale.
 import { devices, type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { iconMarks } from './helpers';
 
 const { defaultBrowserType: _b, ...iphone } = devices['iPhone 13'];
 test.use(iphone);
@@ -61,7 +62,7 @@ test('telefono: icona a una onda dal primo disegno', async ({ page }) => {
   const seen = await page.evaluate(() => (window as unknown as { suoni: string[] }).suoni);
   expect(seen.length).toBeGreaterThan(0);
   expect(new Set(seen)).toEqual(new Set(['basso']));
-  expect(await page.locator('.sound-button .wave-2').evaluate((el) => getComputedStyle(el).display)).toBe('none');
+  expect(await iconMarks(page)).toEqual(['.wave-1']);
 });
 
 test('telefono: senza il client lo script in testa mostra già una onda', async ({ page }) => {
@@ -69,7 +70,7 @@ test('telefono: senza il client lo script in testa mostra già una onda', async 
   await page.route('**/_astro/*.js', (r) => r.abort());
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('data-suono', 'basso');
-  expect(await page.locator('.sound-button .wave-2').evaluate((el) => getComputedStyle(el).display)).toBe('none');
+  expect(await iconMarks(page)).toEqual(['.wave-1']);
 });
 
 test('"scrivi" apre la tastiera, toccare lo schermo no', async ({ page }) => {

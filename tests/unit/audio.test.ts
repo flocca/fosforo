@@ -312,8 +312,10 @@ describe('createAudio', () => {
       return set(v);
     };
     audio.setLevel('basso');
+    // stessa rampa a metà strada, poi lo spegnimento
+    gain.value = 0.34;
     audio.setMuted(true);
-    expect(anchors.slice(0, 2)).toEqual([0.34, 0.34]);
+    expect(anchors).toEqual([0.34, 0.34, 0.34, 0.34]);
   });
 
   it('il fondo passa dagli acuti smussati, una coppia per sessione', async () => {
@@ -331,16 +333,23 @@ describe('createAudio', () => {
     const targets = shelves().map((n) => n.outputs[0] as FakeNode);
     expect(targets.filter((t) => t.outputs.includes(master))).toHaveLength(1);
     expect(new Set(targets).size).toBe(2);
-    // ogni scaffale riceve da un guadagno della sessione che esce solo lì (nessuna scorciatoia),
-    // e in quel guadagno suona almeno una voce del fondo
-    const nodes = contexts[0].nodes;
-    for (const s of shelves()) {
-      const feeders = nodes.filter((n) => n.outputs.includes(s));
-      expect(feeders).toHaveLength(1);
-      expect(feeders[0].kind).toBe('gain');
-      expect(feeders[0].outputs).toEqual([s]);
-      expect(nodes.some((n) => n.outputs.includes(feeders[0]))).toBe(true);
-    }
+    // ogni sorgente sintetizzata (ronzio, tubo, ventola) arriva all'uscita solo passando da uno
+    // scaffale: nessuna scorciatoia. Le registrazioni (tasti, floppy) restano fuori, come da progetto.
+    const c = contexts[0];
+    const shelved = new Set<unknown>(shelves());
+    const leaks = (n: FakeNode, seen = new Set<FakeNode>()): boolean => {
+      if (n === c.destination) return true;
+      if (shelved.has(n) || seen.has(n)) return false;
+      seen.add(n);
+      return n.outputs.some((o) => o instanceof FakeNode && leaks(o, seen));
+    };
+    const recorded = (n: FakeNode) => {
+      const d = (n as unknown as { buffer: { getChannelData(): Float32Array } | null }).buffer?.getChannelData();
+      return d?.byteLength === MECH.data.byteLength || d?.byteLength === FLOPPY.data.byteLength;
+    };
+    const synthesized = c.nodes.filter((n) => n.kind === 'oscillator' || (n.kind === 'buffer' && !recorded(n)));
+    expect(synthesized.length).toBeGreaterThan(0);
+    expect(synthesized.filter((n) => leaks(n))).toEqual([]);
     audio.powerOff();
     audio.powerOn();
     await flush();

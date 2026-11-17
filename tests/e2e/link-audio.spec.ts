@@ -1,7 +1,7 @@
 // Link già acceso (il visitatore ha acceso il monitor oggi): l'audio parte solo dal tasto del suono.
 import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { audioContexts, countAudioContexts, output, powerButton, prompt } from './helpers';
+import { audioContexts, countAudioContexts, iconMarks, output, powerButton, prompt } from './helpers';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -138,11 +138,6 @@ test('la 404 fa partire l\'audio al primo gesto', async ({ page }) => {
 const ledLit = (page: Page) => page.locator('.sound-led').evaluate((el) => getComputedStyle(el).backgroundImage.includes('gradient'));
 // l'icona del tasto: il suono mostrato (spento o un livello), come lo dice data-suono
 const iconShown = (page: Page) => page.evaluate(() => document.documentElement.dataset.suono);
-// i segni visibili dell'icona: le onde (una per livello) e la croce
-const iconMarks = (page: Page) =>
-  page.locator('.sound-button').evaluate((b) =>
-    ['.wave-1', '.wave-2', '.wave-3', '.cross'].filter((sel) => getComputedStyle(b.querySelector(sel)!).display !== 'none'),
-  );
 
 test.describe('prima del client', () => {
   test.beforeEach(async ({ page }) => {

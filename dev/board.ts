@@ -112,6 +112,9 @@ function loadProfile(p: Profile) {
 
 // ---------- catena audio ----------
 
+// il fondo continuo: passa dallo scaffale degli acuti, come nel sito
+const AMBIENT: readonly VoiceId[] = ['rete', 'ventola', 'tubo'];
+
 class Rig {
   readonly master: GainNode;
   readonly direct: GainNode;
@@ -172,9 +175,8 @@ class Rig {
   }
 
   /**
-   * Fa partire (o spegne, per le scintille del tubo) una voce del fondo continuo (ronzio,
-   * tubo, ventola) attraverso lo scaffale, come nel sito: le altre voci (relè, tasti, disco)
-   * restano sulle uscite dirette.
+   * Fa partire una voce del fondo continuo (ronzio, tubo, ventola) attraverso lo scaffale,
+   * come nel sito: le altre voci (relè, tasti, disco) restano sulle uscite dirette.
    */
   ambient<T>(start: () => T): T {
     const bus = this.synth.bus;
@@ -193,8 +195,13 @@ class Rig {
     (this.running[v] ??= []).push(h);
   }
 
+  /** Ferma una voce. Quelle del fondo si fermano dallo scaffale: le scintille del tubo nascono lì, come nel sito. */
   stop(v: VoiceId, at = this.ctx.currentTime) {
-    for (const h of this.running[v] ?? []) h.stop(at);
+    const stopAll = () => {
+      for (const h of this.running[v] ?? []) h.stop(at);
+    };
+    if (AMBIENT.includes(v)) this.ambient(stopAll);
+    else stopAll();
     this.running[v] = [];
   }
 
@@ -445,8 +452,7 @@ async function act(rig: Rig, v: VoiceId, action: string, at: number, source: Sou
       s.relay(p, at, action === 'off' ? 'off' : 'on');
       return 0.3;
     case 'tubo':
-      // anche lo spegnimento passa dallo scaffale: le scintille nascono sull'uscita del momento
-      if (action === 'off') rig.ambient(() => rig.stop(v, at));
+      if (action === 'off') rig.stop(v, at);
       else rig.keep(v, rig.ambient(() => s.tube(p, mains(), at)));
       return p.crackleDur;
     case 'smagnetizzazione':
