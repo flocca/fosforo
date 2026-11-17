@@ -116,7 +116,6 @@ class Rig {
   readonly synth: Synth;
   readonly legacy: Legacy;
   private hp: BiquadFilterNode;
-  private lp: BiquadFilterNode;
   private phoneIn: GainNode;
   private dryOut: GainNode;
   running: Partial<Record<VoiceId, Handle[]>> = {};
@@ -128,18 +127,14 @@ class Rig {
   ) {
     this.master = ctx.createGain();
     this.master.gain.value = state.master;
-    // anteprima altoparlante del telefono: passa banda ~300 Hz-6 kHz
+    // anteprima altoparlante del telefono: solo passa alto a 300 Hz; un altoparlante di telefono riproduce il sibilo della ventola a 8 kHz e il fischio di linea, quindi l'anteprima non deve tagliarli
     this.hp = ctx.createBiquadFilter();
     this.hp.type = 'highpass';
     this.hp.frequency.value = 300;
     this.hp.Q.value = 0.7;
-    this.lp = ctx.createBiquadFilter();
-    this.lp.type = 'lowpass';
-    this.lp.frequency.value = 6000;
-    this.lp.Q.value = 0.7;
     this.phoneIn = ctx.createGain();
     this.dryOut = ctx.createGain();
-    this.master.connect(this.phoneIn).connect(this.hp).connect(this.lp).connect(ctx.destination);
+    this.master.connect(this.phoneIn).connect(this.hp).connect(ctx.destination);
     this.master.connect(this.dryOut).connect(ctx.destination);
     this.setPhone(state.phone);
     this.direct = ctx.createGain();
