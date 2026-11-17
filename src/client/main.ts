@@ -26,6 +26,8 @@ type SiteIndex = {
 // Il contesto audio nasce solo dentro un gesto: clic sull'interruttore, il tasto del suono
 // su un link già acceso, o il primo tocco o tasto sulla 404. Prima di allora `seek` non fa niente.
 const audio = createAudio();
+// Provvisorio fino ai livelli sul tasto: il suono spento resta quello di sempre.
+audio.setMuted(prefs.isSoundOff());
 // Link già acceso (il visitatore ha acceso il monitor oggi): l'audio aspetta il tasto del
 // suono (o il comando `suono`), nessun altro gesto lo fa partire. Finché aspetta, spia e
 // tasto si mostrano spenti. Lo spegnimento chiude l'attesa.

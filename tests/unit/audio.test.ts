@@ -261,6 +261,59 @@ describe('createAudio', () => {
     expect(master()).toBe(level);
   });
 
+  it('setLevel cambia il livello del guadagno principale', () => {
+    const { audio, master } = setup();
+    audio.powerOn();
+    audio.setLevel('medio');
+    expect(audio.level).toBe('medio');
+    expect(master()).toBe(0.18);
+    audio.setLevel('basso');
+    expect(master()).toBe(0.063);
+    audio.setLevel('alto');
+    expect(master()).toBe(0.5);
+  });
+
+  it('setLevel prima del contesto vale all\'apertura', () => {
+    const { audio, master } = setup();
+    audio.setLevel('basso');
+    audio.powerOn();
+    expect(master()).toBe(0.063);
+  });
+
+  it('setLevel da muto non tocca il guadagno principale', async () => {
+    const { audio, contexts, master } = setup();
+    audio.powerOn();
+    audio.setMuted(true);
+    const resumes = () => contexts[0].calls.filter((c) => c === 'resume').length;
+    const before = resumes();
+    audio.setLevel('medio');
+    expect(master()).toBe(0);
+    expect(resumes()).toBe(before);
+    audio.setMuted(false);
+    expect(master()).toBe(0.18);
+  });
+
+  it('il fondo passa dagli acuti smussati, una coppia per sessione', async () => {
+    const { audio, contexts } = setup();
+    const shelves = () =>
+      contexts[0].nodes.filter((n) => {
+        const f = n as unknown as { type: string; frequency: FakeParam; gain: FakeParam };
+        return n.kind === 'filter' && f.type === 'highshelf' && f.frequency.value === 3500 && f.gain.value === -8;
+      });
+    audio.powerOn();
+    await flush();
+    expect(shelves()).toHaveLength(2);
+    // una esce sull'ingresso del mobile (passa dal passa basso), l'altra sul guadagno diretto (collegato all'uscita)
+    const master = contexts[0].nodes.find((n) => n.outputs.includes(contexts[0].destination))!;
+    const targets = shelves().map((n) => n.outputs[0] as FakeNode);
+    expect(targets.filter((t) => t.outputs.includes(master))).toHaveLength(1);
+    expect(new Set(targets).size).toBe(2);
+    audio.powerOff();
+    audio.powerOn();
+    await flush();
+    expect(shelves()).toHaveLength(4);
+  });
+
   it('con il suono spento prima dell\'accensione il contesto nasce muto', () => {
     const { audio, contexts, master } = setup();
     audio.setMuted(true);
