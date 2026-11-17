@@ -280,7 +280,7 @@ describe('createAudio', () => {
     expect(master()).toBe(0.063);
   });
 
-  it('setLevel da muto non tocca il guadagno principale', async () => {
+  it('setLevel da muto non tocca il guadagno principale', () => {
     const { audio, contexts, master } = setup();
     audio.powerOn();
     audio.setMuted(true);
@@ -405,7 +405,9 @@ describe('createAudio', () => {
     const spy = vi.spyOn(g.gain, 'setValueAtTime');
     audio.setMuted(true);
     // la rampa verso 0 parte dopo la fine del rilascio (0,12 s nel file finto)
-    expect((spy.mock.calls[0] as unknown as number[])[1]).toBeGreaterThanOrEqual(c.currentTime + 0.12);
+    // prima il valore corrente è tenuto da adesso, poi ancorato alla partenza della rampa
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBe(c.currentTime);
+    expect((spy.mock.calls[1] as unknown as number[])[1]).toBeGreaterThanOrEqual(c.currentTime + 0.12);
     expect(master()).toBe(0);
   });
 
@@ -418,7 +420,8 @@ describe('createAudio', () => {
     const g = c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam };
     const spy = vi.spyOn(g.gain, 'setValueAtTime');
     audio.setLevel('basso');
-    expect((spy.mock.calls[0] as unknown as number[])[1]).toBeGreaterThan(c.currentTime);
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBe(c.currentTime);
+    expect((spy.mock.calls[1] as unknown as number[])[1]).toBeGreaterThan(c.currentTime);
     expect(master()).toBe(0.063);
   });
 

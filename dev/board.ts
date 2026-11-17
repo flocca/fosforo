@@ -3,6 +3,7 @@
 // registrazione (CC0 / CC BY da .cache/suoni). "copia valori" copia il JSON dei parametri.
 import { PROFILES, SCHEMA, VOICES, getProfile, type Params, type Profile, type VoiceId } from '../src/client/sound/profiles';
 import { Synth, createCase, type Case, type Handle } from '../src/client/sound/voices';
+import { SOFTEN } from '../src/client/sound/preset';
 import { Legacy } from './legacy';
 import { CLIPS, DISK_KIT, RECORDINGS, clipFile, type Clip } from './recordings';
 
@@ -87,6 +88,8 @@ const state = {
   clipsOff: {} as Partial<Record<VoiceId, ClipState>>,
   master: 0.5,
   phone: false,
+  /** scaffale che smorza gli acuti del solo fondo continuo (ronzio, tubo, ventola), come nel sito */
+  soften: { on: true, hz: SOFTEN.hz, db: SOFTEN.db },
   /** accensione e spegnimento completi: suona anche il tasto della cornice prima dell'interruttore? */
   powerKey: false,
 };
@@ -118,6 +121,8 @@ class Rig {
   private hp: BiquadFilterNode;
   private phoneIn: GainNode;
   private dryOut: GainNode;
+  private softMech: BiquadFilterNode;
+  private softDirect: BiquadFilterNode;
   running: Partial<Record<VoiceId, Handle[]>> = {};
   private decoded = new Map<string, AudioBuffer | null>();
 
@@ -141,12 +146,47 @@ class Rig {
     this.direct.connect(this.master);
     this.case = createCase(ctx, this.master, state.params.cassa);
     this.synth = new Synth(ctx, { mech: this.case.input, direct: this.direct }, seed);
+    // come in audio.ts: uno scaffale per ognuna delle due uscite del fondo continuo
+    this.softMech = ctx.createBiquadFilter();
+    this.softMech.type = 'highshelf';
+    this.softMech.connect(this.case.input);
+    this.softDirect = ctx.createBiquadFilter();
+    this.softDirect.type = 'highshelf';
+    this.softDirect.connect(this.direct);
+    this.setSoften();
     this.legacy = new Legacy(ctx, this.direct);
   }
 
   setPhone(on: boolean) {
     this.phoneIn.gain.value = on ? 1 : 0;
     this.dryOut.gain.value = on ? 0 : 1;
+  }
+
+  /** Applica lo stato dello scaffale: spento, il guadagno è 0 dB (il filtro non fa nulla). */
+  setSoften() {
+    const { on, hz, db } = state.soften;
+    for (const f of [this.softMech, this.softDirect]) {
+      f.frequency.value = hz;
+      f.gain.value = on ? db : 0;
+    }
+  }
+
+  /**
+   * Fa partire una voce del fondo continuo (ronzio, tubo, ventola) attraverso lo scaffale,
+   * come nel sito: le altre voci (relè, tasti, disco) restano sulle uscite dirette.
+   * Le scintille allo spegnimento del tubo escono dalle uscite dirette, senza scaffale.
+   */
+  ambient<T>(start: () => T): T {
+    const bus = this.synth.bus;
+    const { mech, direct } = bus;
+    bus.mech = this.softMech;
+    bus.direct = this.softDirect;
+    try {
+      return start();
+    } finally {
+      bus.mech = mech;
+      bus.direct = direct;
+    }
   }
 
   keep(v: VoiceId, h: Handle) {
@@ -406,18 +446,18 @@ async function act(rig: Rig, v: VoiceId, action: string, at: number, source: Sou
       return 0.3;
     case 'tubo':
       if (action === 'off') rig.stop(v, at);
-      else rig.keep(v, s.tube(p, mains(), at));
+      else rig.keep(v, rig.ambient(() => s.tube(p, mains(), at)));
       return p.crackleDur;
     case 'smagnetizzazione':
       s.degauss({ ...p, on: 1 }, mains(), at);
       return p.decay * 4;
     case 'ventola':
       if (action === 'stop') rig.stop(v, at);
-      else rig.keep(v, s.fan(p, mains(), at, action === 'start'));
+      else rig.keep(v, rig.ambient(() => s.fan(p, mains(), at, action === 'start')));
       return p.spinUp;
     case 'rete':
       if (action === 'stop') rig.stop(v, at);
-      else rig.keep(v, s.hum(p, at, action === 'start'));
+      else rig.keep(v, rig.ambient(() => s.hum(p, at, action === 'start')));
       return p.inrushS;
     case 'disco':
       return diskAction(rig, synthDisk(rig), action, at, p);
@@ -825,6 +865,21 @@ function init() {
     state.phone = phone.checked;
     live?.rig.setPhone(state.phone);
   });
+  const softOn = $<HTMLInputElement>('#acuti-attivo');
+  const softHz = $<HTMLInputElement>('#acuti-hz');
+  const softDb = $<HTMLInputElement>('#acuti-db');
+  softOn.checked = state.soften.on;
+  softHz.value = String(state.soften.hz);
+  softDb.value = String(state.soften.db);
+  $('#acuti-hz-valore').textContent = fmt(state.soften.hz);
+  $('#acuti-db-valore').textContent = fmt(state.soften.db);
+  const softChange = () => {
+    state.soften = { on: softOn.checked, hz: Number(softHz.value), db: Number(softDb.value) };
+    $('#acuti-hz-valore').textContent = fmt(state.soften.hz);
+    $('#acuti-db-valore').textContent = fmt(state.soften.db);
+    live?.rig.setSoften();
+  };
+  for (const i of [softOn, softHz, softDb]) i.addEventListener('input', softChange);
   $('#accendi').addEventListener('click', () => {
     const r = rig();
     for (const v of VOICES) r.stop(v);

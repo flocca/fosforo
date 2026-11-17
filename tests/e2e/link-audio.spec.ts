@@ -163,6 +163,13 @@ test.describe('prima del client', () => {
     expect(await iconShown(page)).toBe('spento');
   });
 
+  test('preferenza alta: la spia mostra le tre onde dal primo disegno', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'alto'));
+    await page.goto('/');
+    await expect(page.locator('html')).toHaveAttribute('data-suono', 'alto');
+    expect(await iconMarks(page)).toEqual(['.wave-1', '.wave-2', '.wave-3']);
+  });
+
   test('home e 404 con il suono acceso: la spia è accesa', async ({ page }) => {
     await page.goto('/');
     expect(await ledLit(page)).toBe(true);

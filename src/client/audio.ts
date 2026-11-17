@@ -542,6 +542,8 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       // spegnendo, il tasto appena premuto finisce di suonare
       const from = m ? Math.max(t, quietAt) : t;
       master.gain.cancelScheduledValues(t);
+      // una rampa ancora in corso: il valore resta dov'è fino a `from`, senza tornare indietro
+      master.gain.setValueAtTime(master.gain.value, t);
       master.gain.setValueAtTime(master.gain.value, from);
       master.gain.linearRampToValueAtTime(m ? 0 : VOLUME[level], from + MUTE_RAMP_S);
       if (m) {
@@ -562,6 +564,8 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       // come lo spegnimento: il tasto appena premuto finisce di suonare al livello di prima
       const from = Math.max(t, quietAt);
       master.gain.cancelScheduledValues(t);
+      // una rampa ancora in corso: il valore resta dov'è fino a `from`, senza tornare indietro
+      master.gain.setValueAtTime(master.gain.value, t);
       master.gain.setValueAtTime(master.gain.value, from);
       master.gain.linearRampToValueAtTime(VOLUME[level], from + MUTE_RAMP_S);
     },
