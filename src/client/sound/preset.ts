@@ -5,6 +5,11 @@
 // da dev/ritaglia-suoni.sh). Per cambiarli: si torna sul banco, si salva una configurazione
 // e si riportano qui i valori.
 import type { Params } from './profiles';
+import type { SoundLevel } from '../volume';
+
+// Guadagno principale per livello e filtro che smorza gli alti: scelti a orecchio su /_volume il 2026-11-17.
+export const VOLUME: Record<SoundLevel, number> = { alto: 0.5, medio: 0.18, basso: 0.063 };
+export const SOFTEN = { hz: 3500, db: -8 };
 
 export const MAINS = 50;
 

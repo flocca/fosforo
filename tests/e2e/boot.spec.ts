@@ -208,15 +208,16 @@ test('il selettore dei fosfori: verde, ambra, bianco, verde, e resta dopo il ric
 });
 
 const soundLed = (page: Page) => page.locator('.sound-led');
-const soundButton = (page: Page, on: boolean) => page.getByRole('button', { name: on ? 'Suono acceso' : 'Suono spento' });
+const soundButton = (page: Page, shown: string) => page.getByRole('button', { name: `Suono ${shown}` });
+const savedSound = (page: Page) => page.evaluate(() => localStorage.getItem('fosforo.suono'));
 
-test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', async ({ page }) => {
+test('suono: medio dopo l\'accensione, il comando lo regola e la scelta resta', async ({ page }) => {
   await today(page);
   await countAudioContexts(page);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
-  await expect(soundButton(page, true)).toBeEnabled();
+  await expect(soundButton(page, 'medio')).toBeEnabled();
   // a monitor spento nessun contesto audio
   expect(await audioContexts(page)).toBe(0);
   await powerButton(page).click();
@@ -227,9 +228,16 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   await expect(soundLed(page)).toHaveClass(/is-on/);
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
+  await expect(output(page)).toContainText('Suono basso.');
+  await expect(soundButton(page, 'basso')).toBeVisible();
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+  expect(await savedSound(page)).toBe('basso');
+  await prompt(page).fill('suono spento');
+  await prompt(page).press('Enter');
   await expect(output(page)).toContainText('Suono spento.');
-  await expect(soundButton(page, false)).toBeVisible();
-  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
+  await expect(soundButton(page, 'spento')).toBeVisible();
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
+  expect(await savedSound(page)).toBe('spento');
 
   await page.reload();
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
@@ -242,26 +250,34 @@ test('suono: acceso dopo l\'accensione, il comando lo spegne e resta spento', as
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
   await prompt(page).fill('suono acceso');
   await prompt(page).press('Enter');
+  await expect(output(page)).toContainText('Suono medio.');
   await expect(soundLed(page)).toHaveClass(/is-on/);
-  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBeNull();
+  expect(await savedSound(page)).toBe('medio');
   expect(errors).toEqual([]);
 });
 
 test('il tasto del suono ha lo stesso effetto del comando, anche a monitor spento, e la scelta resta dopo il ricaricamento', async ({ page }) => {
   await page.goto('/');
-  await soundButton(page, true).click();
+  await soundButton(page, 'medio').click();
+  await expect(soundButton(page, 'basso')).toBeVisible();
+  expect(await savedSound(page)).toBe('basso');
+  await soundButton(page, 'basso').click();
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
-  expect(await page.evaluate(() => localStorage.getItem('fosforo.suono'))).toBe('spento');
+  expect(await savedSound(page)).toBe('spento');
   // non accende il monitor
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
 
   await page.goto('/chi-sono');
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
-  await soundButton(page, false).click();
+  await soundButton(page, 'spento').click();
+  await expect(soundButton(page, 'alto')).toBeVisible();
   await expect(soundLed(page)).toHaveClass(/is-on/);
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
-  await expect(output(page)).toContainText('Suono spento.');
+  await expect(output(page)).toContainText('Suono medio.');
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+  await prompt(page).fill('suono spento');
+  await prompt(page).press('Enter');
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
 });
 
@@ -324,17 +340,25 @@ test('spia dell\'interruttore: accesa solo dopo l\'accensione, anche durante il 
 test('spia del suono: segue il tasto', async ({ page }) => {
   await page.goto('/');
   await expect(soundLed(page)).toHaveClass(/is-on/);
-  await soundButton(page, true).click();
-  await expect(soundLed(page)).not.toHaveClass(/is-on/);
-  await soundButton(page, false).click();
+  await soundButton(page, 'medio').click();
   await expect(soundLed(page)).toHaveClass(/is-on/);
+  await soundButton(page, 'basso').click();
+  await expect(soundLed(page)).not.toHaveClass(/is-on/);
+  await soundButton(page, 'spento').click();
+  await expect(soundLed(page)).toHaveClass(/is-on/);
+  await expect(soundButton(page, 'alto')).toBeVisible();
 
   // sul link già acceso la spia resta spenta finché il tasto non fa partire l'audio
   await page.goto('/chi-sono');
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
-  await soundButton(page, false).click();
+  await soundButton(page, 'spento').click();
   await expect(soundLed(page)).toHaveClass(/is-on/);
-  await soundButton(page, true).click();
+  await expect(soundButton(page, 'alto')).toBeVisible();
+  for (const shown of ['alto', 'medio']) {
+    await soundButton(page, shown).click();
+    await expect(soundLed(page)).toHaveClass(/is-on/);
+  }
+  await soundButton(page, 'basso').click();
   await expect(soundLed(page)).not.toHaveClass(/is-on/);
 });
 

@@ -4,9 +4,12 @@
 // rosso dell'IBM 5150, il tasto di una TV analogica (tasti della cornice) e un floppy diviso
 // in passi, ricerche e motore. Valori e scelte in src/client/sound/preset.ts.
 //
+// Il volume generale ha tre livelli (src/client/volume.ts, valori in preset.ts); il fondo continuo
+// (ronzio, tubo, ventola) passa da uno scaffale sugli acuti che li smussa, uno per sessione.
+//
 // Le registrazioni si scaricano al primo gesto, dopo l'accensione: niente rete prima.
-import * as prefs from './prefs';
-import { CASE, FAN, FLOPPY, HUM, MAINS, MECH, TUBE } from './sound/preset';
+import { CASE, FAN, FLOPPY, HUM, MAINS, MECH, SOFTEN, TUBE, VOLUME } from './sound/preset';
+import type { SoundLevel } from './volume';
 import { findSegments, type Segment } from './sound/sprite';
 import { Synth, createCase, type Bus, type Voice } from './sound/voices';
 import floppyM4a from './sound/registrazioni/floppy.m4a?url';
@@ -17,6 +20,8 @@ import mechWebm from './sound/registrazioni/meccanica.webm?url';
 export type SiteAudio = {
   readonly started: boolean;
   readonly muted: boolean;
+  /** Livello del volume generale (`alto` all'inizio); vale anche da muto, quando si riascolta. */
+  readonly level: SoundLevel;
   /** Interruttore, ronzio con lo spunto, tubo, ventola che prende giri, floppy che ricalibra. La prima volta crea il contesto; dopo `powerOff` riaccende (anche con la ventola che sta ancora rallentando); già acceso non fa niente. */
   powerOn(): void;
   /** Spegnimento del monitor: scatto dell'interruttore, tubo che si scarica, ronzio che cessa, ventola che rallenta (`FAN.spinDown`), motore del floppy che si ferma. Da muto si ferma tutto in silenzio. Niente prima del contesto o a monitor già spento. */
@@ -34,6 +39,8 @@ export type SiteAudio = {
   /** Il tasto della cornice che torna su. */
   keyUp(): void;
   setMuted(m: boolean): void;
+  /** Cambia il livello del volume generale con una rampa. Da muto lo ricorda soltanto: il contesto resta com'è. */
+  setLevel(l: SoundLevel): void;
   suspend(): void;
   resume(): void;
 };
@@ -41,8 +48,6 @@ export type SiteAudio = {
 export type SoundFile = 'meccanica' | 'floppy';
 export type Format = 'webm' | 'm4a';
 export type Loader = (name: SoundFile, format: Format) => Promise<ArrayBuffer>;
-
-export const LEVELS = { master: 0.5 };
 
 const MUTE_RAMP_S = 0.05;
 // riaccendendo durante il rallentamento, quello che resta della sessione di prima tace in tanto
@@ -89,7 +94,8 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
   let caseIn: AudioNode;
   // le uscite del sintetizzatore: puntano ai guadagni della sessione accesa
   let bus: Bus;
-  let muted = prefs.isSoundOff();
+  let muted = false;
+  let level: SoundLevel = 'alto';
   let muteTimer: ReturnType<typeof setTimeout> | undefined;
   let mech: Pieces | null = null;
   let floppy: Pieces | null = null;
@@ -168,7 +174,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       return false;
     }
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : LEVELS.master;
+    master.gain.value = muted ? 0 : VOLUME[level];
     master.connect(ctx.destination);
     direct = ctx.createGain();
     direct.connect(master);
@@ -231,10 +237,19 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     const c = ctx!;
     // la ventola di prima sta ancora rallentando: tace allo scatto, mai due ventole
     if (session) endSession(session, t0);
+    // il fondo passa da uno scaffale che smussa gli acuti, uno per ognuna delle due uscite
+    const soften = (to: AudioNode) => {
+      const f = c.createBiquadFilter();
+      f.type = 'highshelf';
+      f.frequency.value = SOFTEN.hz;
+      f.gain.value = SOFTEN.db;
+      f.connect(to);
+      return f;
+    };
     const mech = c.createGain();
-    mech.connect(caseIn);
+    mech.connect(soften(caseIn));
     const dir = c.createGain();
-    dir.connect(direct);
+    dir.connect(soften(direct));
     // il sintetizzatore legge le uscite a ogni voce: da qui in poi suona nella sessione nuova
     bus.mech = mech;
     bus.direct = dir;
@@ -318,6 +333,17 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     g.gain.linearRampToValueAtTime(FLOPPY.gain, at + FLOPPY.motorSpinUp);
     src.start(at, src.loopStart);
     motor = { src, g };
+  }
+
+  // Porta il guadagno generale a `to` con una rampa che parte a `from`. Il valore si legge
+  // prima di cancellare: una rampa ancora in corso resta dov'è fino a `from`, senza tornare
+  // al punto di partenza in un browser che ricalcola `value` dalla programmazione rimasta.
+  function rampMaster(t: number, from: number, to: number) {
+    const v = master.gain.value;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(v, t);
+    master.gain.setValueAtTime(v, from);
+    master.gain.linearRampToValueAtTime(to, from + MUTE_RAMP_S);
   }
 
   function motorOff() {
@@ -429,6 +455,9 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     get muted() {
       return muted;
     },
+    get level() {
+      return level;
+    },
 
     powerOn() {
       if (on || (!ctx && !open())) return;
@@ -523,9 +552,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       const t = c.currentTime;
       // spegnendo, il tasto appena premuto finisce di suonare
       const from = m ? Math.max(t, quietAt) : t;
-      master.gain.cancelScheduledValues(t);
-      master.gain.setValueAtTime(master.gain.value, from);
-      master.gain.linearRampToValueAtTime(m ? 0 : LEVELS.master, from + MUTE_RAMP_S);
+      rampMaster(t, from, m ? 0 : VOLUME[level]);
       if (m) {
         motorOff();
         // da muto il contesto si ferma, così non consuma batteria: dopo che è finito
@@ -535,6 +562,14 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       } else {
         sync();
       }
+    },
+
+    setLevel(l) {
+      level = l;
+      if (!ctx || muted) return;
+      const t = ctx.currentTime;
+      // come lo spegnimento: il tasto appena premuto finisce di suonare al livello di prima
+      rampMaster(t, Math.max(t, quietAt), VOLUME[level]);
     },
 
     suspend() {

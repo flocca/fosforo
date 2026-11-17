@@ -261,6 +261,101 @@ describe('createAudio', () => {
     expect(master()).toBe(level);
   });
 
+  it('setLevel cambia il livello del guadagno principale', () => {
+    const { audio, master } = setup();
+    audio.powerOn();
+    audio.setLevel('medio');
+    expect(audio.level).toBe('medio');
+    expect(master()).toBe(0.18);
+    audio.setLevel('basso');
+    expect(master()).toBe(0.063);
+    audio.setLevel('alto');
+    expect(master()).toBe(0.5);
+  });
+
+  it('setLevel prima del contesto vale all\'apertura', () => {
+    const { audio, master } = setup();
+    audio.setLevel('basso');
+    audio.powerOn();
+    expect(master()).toBe(0.063);
+  });
+
+  it('setLevel da muto non tocca il guadagno principale', () => {
+    const { audio, contexts, master } = setup();
+    audio.powerOn();
+    audio.setMuted(true);
+    const resumes = () => contexts[0].calls.filter((c) => c === 'resume').length;
+    const before = resumes();
+    audio.setLevel('medio');
+    expect(master()).toBe(0);
+    expect(resumes()).toBe(before);
+    audio.setMuted(false);
+    expect(master()).toBe(0.18);
+  });
+
+  it('cambiando livello a metà rampa si riparte dal valore raggiunto, non da quello di partenza', () => {
+    const { audio, contexts } = setup();
+    audio.powerOn();
+    const c = contexts[0];
+    const gain = (c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam }).gain;
+    // un browser che ricalcola `value` dalla programmazione rimasta: cancellata la rampa,
+    // torna al punto di partenza (0,5) invece di restare al valore raggiunto (0,34)
+    gain.value = 0.34;
+    gain.cancelScheduledValues = function () {
+      this.value = 0.5;
+      return this;
+    };
+    const anchors: number[] = [];
+    const set = gain.setValueAtTime.bind(gain);
+    gain.setValueAtTime = (v: number) => {
+      anchors.push(v);
+      return set(v);
+    };
+    audio.setLevel('basso');
+    // stessa rampa a metà strada, poi lo spegnimento
+    gain.value = 0.34;
+    audio.setMuted(true);
+    expect(anchors).toEqual([0.34, 0.34, 0.34, 0.34]);
+  });
+
+  it('il fondo passa dagli acuti smussati, una coppia per sessione', async () => {
+    const { audio, contexts } = setup();
+    const shelves = () =>
+      contexts[0].nodes.filter((n) => {
+        const f = n as unknown as { type: string; frequency: FakeParam; gain: FakeParam };
+        return n.kind === 'filter' && f.type === 'highshelf' && f.frequency.value === 3500 && f.gain.value === -8;
+      });
+    audio.powerOn();
+    await flush();
+    expect(shelves()).toHaveLength(2);
+    // una esce sull'ingresso del mobile (passa dal passa basso), l'altra sul guadagno diretto (collegato all'uscita)
+    const master = contexts[0].nodes.find((n) => n.outputs.includes(contexts[0].destination))!;
+    const targets = shelves().map((n) => n.outputs[0] as FakeNode);
+    expect(targets.filter((t) => t.outputs.includes(master))).toHaveLength(1);
+    expect(new Set(targets).size).toBe(2);
+    // ogni sorgente sintetizzata (ronzio, tubo, ventola) arriva all'uscita solo passando da uno
+    // scaffale: nessuna scorciatoia. Le registrazioni (tasti, floppy) restano fuori, come da progetto.
+    const c = contexts[0];
+    const shelved = new Set<unknown>(shelves());
+    const leaks = (n: FakeNode, seen = new Set<FakeNode>()): boolean => {
+      if (n === c.destination) return true;
+      if (shelved.has(n) || seen.has(n)) return false;
+      seen.add(n);
+      return n.outputs.some((o) => o instanceof FakeNode && leaks(o, seen));
+    };
+    const recorded = (n: FakeNode) => {
+      const d = (n as unknown as { buffer: { getChannelData(): Float32Array } | null }).buffer?.getChannelData();
+      return d?.byteLength === MECH.data.byteLength || d?.byteLength === FLOPPY.data.byteLength;
+    };
+    const synthesized = c.nodes.filter((n) => n.kind === 'oscillator' || (n.kind === 'buffer' && !recorded(n)));
+    expect(synthesized.length).toBeGreaterThan(0);
+    expect(synthesized.filter((n) => leaks(n))).toEqual([]);
+    audio.powerOff();
+    audio.powerOn();
+    await flush();
+    expect(shelves()).toHaveLength(4);
+  });
+
   it('con il suono spento prima dell\'accensione il contesto nasce muto', () => {
     const { audio, contexts, master } = setup();
     audio.setMuted(true);
@@ -352,8 +447,24 @@ describe('createAudio', () => {
     const spy = vi.spyOn(g.gain, 'setValueAtTime');
     audio.setMuted(true);
     // la rampa verso 0 parte dopo la fine del rilascio (0,12 s nel file finto)
-    expect((spy.mock.calls[0] as unknown as number[])[1]).toBeGreaterThanOrEqual(c.currentTime + 0.12);
+    // prima il valore corrente è tenuto da adesso, poi ancorato alla partenza della rampa
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBe(c.currentTime);
+    expect((spy.mock.calls[1] as unknown as number[])[1]).toBeGreaterThanOrEqual(c.currentTime + 0.12);
     expect(master()).toBe(0);
+  });
+
+  it('cambiando livello subito dopo il tasto, il tasto finisce di suonare al livello di prima', async () => {
+    const { audio, contexts, master } = setup();
+    audio.powerOn();
+    await flush();
+    const c = contexts[0];
+    audio.press();
+    const g = c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam };
+    const spy = vi.spyOn(g.gain, 'setValueAtTime');
+    audio.setLevel('basso');
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBe(c.currentTime);
+    expect((spy.mock.calls[1] as unknown as number[])[1]).toBeGreaterThan(c.currentTime);
+    expect(master()).toBe(0.063);
   });
 
   it('seek dice per quanti secondi lavora la testina: 0 se non suona', async () => {

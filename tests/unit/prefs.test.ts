@@ -21,12 +21,11 @@ describe('prefs senza storage (Review Focus 2)', () => {
   it('i metodi che lanciano danno i valori predefiniti e non lanciano', () => {
     vi.stubGlobal('localStorage', { getItem: throwing, setItem: throwing, removeItem: throwing });
     expect(prefs.getPhosphor()).toBe('verde');
-    expect(prefs.isSoundOff()).toBe(false);
+    expect(prefs.getSoundSetting()).toBeNull();
     expect(prefs.getLastBoot()).toBeNull();
     expect(prefs.getLastPowerOn()).toBeNull();
     expect(() => prefs.setPhosphor('ambra')).not.toThrow();
-    expect(() => prefs.setSoundOff(true)).not.toThrow();
-    expect(() => prefs.setSoundOff(false)).not.toThrow();
+    expect(() => prefs.setSoundSetting('basso')).not.toThrow();
     expect(() => prefs.setLastBoot('2026-11-11')).not.toThrow();
     expect(() => prefs.setLastPowerOn('2026-11-11')).not.toThrow();
   });
@@ -49,9 +48,9 @@ describe('prefs con storage', () => {
     prefs.setPhosphor('ambra');
     expect(s.data.get('fosforo.fosfori')).toBe('ambra');
     expect(prefs.getPhosphor()).toBe('ambra');
-    prefs.setSoundOff(true);
+    prefs.setSoundSetting('spento');
     expect(s.data.get('fosforo.suono')).toBe('spento');
-    expect(prefs.isSoundOff()).toBe(true);
+    expect(prefs.getSoundSetting()).toBe('spento');
     prefs.setLastBoot('2026-11-11');
     expect(prefs.getLastBoot()).toBe('2026-11-11');
     prefs.setLastPowerOn('2026-11-12');
@@ -59,13 +58,30 @@ describe('prefs con storage', () => {
     expect(prefs.getLastPowerOn()).toBe('2026-11-12');
   });
 
-  it('setSoundOff(false) toglie la chiave', () => {
+  it('setSoundSetting writes every value', () => {
     const s = memoryStorage();
     vi.stubGlobal('localStorage', s);
-    prefs.setSoundOff(true);
-    prefs.setSoundOff(false);
-    expect(s.data.has('fosforo.suono')).toBe(false);
-    expect(prefs.isSoundOff()).toBe(false);
+    for (const v of ['alto', 'medio', 'basso', 'spento'] as const) {
+      prefs.setSoundSetting(v);
+      expect(s.data.get('fosforo.suono')).toBe(v);
+      expect(prefs.getSoundSetting()).toBe(v);
+    }
+  });
+
+  it('getSoundSetting keeps the old spento', () => {
+    const s = memoryStorage();
+    s.data.set('fosforo.suono', 'spento');
+    vi.stubGlobal('localStorage', s);
+    expect(prefs.getSoundSetting()).toBe('spento');
+  });
+
+  it('getSoundSetting: valori sconosciuti danno null', () => {
+    const s = memoryStorage();
+    vi.stubGlobal('localStorage', s);
+    for (const v of ['boh', 'acceso']) {
+      s.data.set('fosforo.suono', v);
+      expect(prefs.getSoundSetting()).toBeNull();
+    }
   });
 
   it('valori sconosciuti danno i predefiniti', () => {
@@ -76,7 +92,7 @@ describe('prefs con storage', () => {
     s.data.set('fosforo.ultimaAccensione', 'ieri');
     vi.stubGlobal('localStorage', s);
     expect(prefs.getPhosphor()).toBe('verde');
-    expect(prefs.isSoundOff()).toBe(false);
+    expect(prefs.getSoundSetting()).toBeNull();
     expect(prefs.getLastBoot()).toBeNull();
     expect(prefs.getLastPowerOn()).toBeNull();
   });

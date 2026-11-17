@@ -9,17 +9,20 @@
  *   sulla pagina di un elemento) vale come .screen.is-off. Spento, la home nasconde main;
  *   la pagina di un elemento lo lascia nella pagina e nell'albero di accessibilità, solo
  *   ritagliato alla vista (stesso aspetto della home spenta)
+ * - html[data-suono="alto|medio|basso|spento"] (script in testa, poi il client): il suono
+ *   mostrato, dal primo disegno; l'icona del tasto ha un'onda per livello (.wave-1, .wave-2,
+ *   .wave-3) e il barrato (.cross) da spento; senza attributo (niente JavaScript) due onde
  * - html.sound-pending (script in testa: link già acceso, o suono spento dal visitatore)
- *   spegne .sound-led e mostra l'icona del suono spento dal primo disegno, finché il client non la toglie
+ *   spegne .sound-led dal primo disegno, finché il client non la toglie
  * - .term-prompt[hidden] (prompt nascosto durante il boot), .term-prompt.is-busy (comando al lavoro: senza etichetta)
  * - .screen-beam (riga e punto del collasso), .screen-glow (alone dell'accensione): decorativi,
  *   aria-hidden, invisibili fuori dalle loro animazioni
  * - .term, .dim, .bold, .inverse, .ph-img
  * - .term-out, .term-line, .term-prompt, .term-probe (client del terminale)
  * - .power-button, .phosphor-button, .sound-button (tasto fisico del suono, aria-label
- *   "Suono acceso|spento"), .chips
+ *   "Suono alto|medio|basso|spento"), .chips
  * - .panel-key: tasto + spia come un'unica unità; .panel-led (decorativa, aria-hidden) sotto ogni
- *   tasto: .power-led.is-on (monitor acceso), .sound-led.is-on (suono acceso), .phosphor-led
+ *   tasto: .power-led.is-on (monitor acceso), .sound-led.is-on (suono a un livello qualsiasi), .phosphor-led
  *   (sempre accesa, del colore --ph)
  */
 
@@ -816,14 +819,16 @@ body {
   stroke-linejoin: round;
 }
 
-/* tasto del suono: altoparlante inciso, con onde da acceso e barrato da spento */
+/* tasto del suono: altoparlante inciso, con un'onda per livello (alto tre, medio due, basso
+   una) e barrato da spento. Il viewBox parte da -1 perché la terza onda non sia tagliata:
+   il disegno resta dov'era, centrato come prima */
 .sound-button svg {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 20px;
+  width: 22px;
   height: 14px;
-  margin: -7px 0 0 -10px;
+  margin: -7px 0 0 -11px;
   fill: #6b6253;
   stroke: #6b6253;
   stroke-width: 1.6;
@@ -831,23 +836,30 @@ body {
   stroke-linejoin: round;
 }
 
-.sound-button .waves,
+.sound-button .wave-1,
+.sound-button .wave-2,
+.sound-button .wave-3,
 .sound-button .cross {
   fill: none;
 }
 
-.sound-button .cross {
+/* senza JavaScript (nessun data-suono) due onde, come il livello medio */
+.sound-button .cross,
+.sound-button .wave-3 {
   display: none;
 }
 
-/* anche prima del client, con html.sound-pending: l'icona spenta accanto alla spia spenta */
-.sound-button[aria-pressed='false'] .waves,
-:root.sound-pending .sound-button .waves {
+:root[data-suono='alto'] .sound-button .wave-3 {
+  display: inline;
+}
+
+:root[data-suono='basso'] .sound-button .wave-2,
+:root[data-suono='spento'] .sound-button .wave-1,
+:root[data-suono='spento'] .sound-button .wave-2 {
   display: none;
 }
 
-.sound-button[aria-pressed='false'] .cross,
-:root.sound-pending .sound-button .cross {
+:root[data-suono='spento'] .sound-button .cross {
   display: inline;
 }
 

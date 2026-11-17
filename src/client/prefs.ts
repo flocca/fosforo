@@ -1,6 +1,7 @@
 // Preferenze del visitatore: l'unico modulo che tocca lo storage del browser.
 // Ogni accesso è protetto: senza storage (navigazione privata, dati bloccati) valgono i predefiniti.
 import { PHOSPHORS, type Phosphor } from './shell';
+import { isSoundSetting, type SoundSetting } from './volume';
 
 const KEY_PHOSPHOR = 'fosforo.fosfori';
 const KEY_SOUND = 'fosforo.suono';
@@ -15,10 +16,9 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string | null) {
+function write(key: string, value: string) {
   try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
+    localStorage.setItem(key, value);
   } catch {
     // storage non disponibile: la scelta vale solo per questa visita
   }
@@ -33,13 +33,14 @@ export function setPhosphor(p: Phosphor) {
   write(KEY_PHOSPHOR, p);
 }
 
-export function isSoundOff(): boolean {
-  return read(KEY_SOUND) === 'spento';
+// null: il visitatore non ha mai scelto, oppure il valore salvato non è riconosciuto.
+export function getSoundSetting(): SoundSetting | null {
+  const v = read(KEY_SOUND);
+  return isSoundSetting(v) ? v : null;
 }
 
-// Si salva solo "spento"; il suono acceso è l'assenza della chiave.
-export function setSoundOff(off: boolean) {
-  write(KEY_SOUND, off ? 'spento' : null);
+export function setSoundSetting(s: SoundSetting) {
+  write(KEY_SOUND, s);
 }
 
 export function getLastBoot(): string | null {

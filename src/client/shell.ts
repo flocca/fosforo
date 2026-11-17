@@ -1,6 +1,7 @@
 // Interprete dei comandi del terminale: puro, parla con lo schermo solo tramite `Terminal`.
 import type { Block, Span } from '../lib/blocks';
 import { findByPath, listing, resolvePath, type FsNode } from '../lib/fs-tree';
+import { SOUND_SETTINGS, isSoundSetting, type SoundLevel, type SoundSetting } from './volume';
 
 export const PHOSPHORS = ['verde', 'ambra', 'bianco'] as const;
 export type Phosphor = (typeof PHOSPHORS)[number];
@@ -14,7 +15,11 @@ export interface Terminal {
   fetchBlocks(path: string): Promise<Block[] | null>;
   phosphor: Phosphor; // fosfori attuali, per `fosfori` senza argomento
   setPhosphor(p: Phosphor): void;
-  sound: { muted: boolean; setMuted(m: boolean): void };
+  sound: {
+    step(): SoundSetting; // come una pressione del tasto; dà l'impostazione ora mostrata
+    set(s: SoundSetting): void;
+    readonly deviceLevel: SoundLevel; // livello predefinito del dispositivo, per `suono acceso`
+  };
   reboot(): void | Promise<void>; // finisce quando il nuovo boot è concluso
   shutdown(): void | Promise<void>; // spegne il monitor; finisce quando lo schermo è spento
   /** Muove il disco; finisce quando il risultato può comparire (subito, se il disco non suona). */
@@ -28,7 +33,7 @@ const HELP: [string, string][] = [
   ['cat', 'mostra un file'],
   ['pwd', 'mostra la cartella attuale'],
   ['clear', 'pulisce lo schermo'],
-  ['suono', 'accende o spegne il suono'],
+  ['suono', 'regola il suono: alto, medio, basso, spento'],
   ['fosfori', 'cambia colore: verde, ambra, bianco'],
   ['reboot', 'riavvia il terminale'],
   ['shutdown', 'spegne il terminale'],
@@ -121,12 +126,16 @@ export function createShell(root: FsNode, term: Terminal) {
     },
 
     suono([arg]) {
-      let muted: boolean;
-      if (arg === undefined) muted = !term.sound.muted;
-      else if (arg === 'acceso' || arg === 'spento') muted = arg === 'spento';
-      else return err(t(`suono: ${arg}: scegli tra `), ...choices('suono', ['acceso', 'spento'], ' e '));
-      term.sound.setMuted(muted);
-      term.print([line(t(muted ? 'Suono spento.' : 'Suono acceso.'))]);
+      let setting: SoundSetting;
+      if (arg === undefined) setting = term.sound.step();
+      else {
+        // "acceso" resta per chi lo ricorda: porta al livello del dispositivo
+        const chosen = arg === 'acceso' ? term.sound.deviceLevel : arg;
+        if (!isSoundSetting(chosen)) return err(t(`suono: ${arg}: scegli tra `), ...choices('suono', SOUND_SETTINGS), t('.'));
+        term.sound.set(chosen);
+        setting = chosen;
+      }
+      term.print([line(t(`Suono ${setting}.`))]);
       return true;
     },
 

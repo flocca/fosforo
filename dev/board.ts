@@ -3,6 +3,7 @@
 // registrazione (CC0 / CC BY da .cache/suoni). "copia valori" copia il JSON dei parametri.
 import { PROFILES, SCHEMA, VOICES, getProfile, type Params, type Profile, type VoiceId } from '../src/client/sound/profiles';
 import { Synth, createCase, type Case, type Handle } from '../src/client/sound/voices';
+import { SOFTEN } from '../src/client/sound/preset';
 import { Legacy } from './legacy';
 import { CLIPS, DISK_KIT, RECORDINGS, clipFile, type Clip } from './recordings';
 
@@ -87,6 +88,8 @@ const state = {
   clipsOff: {} as Partial<Record<VoiceId, ClipState>>,
   master: 0.5,
   phone: false,
+  /** scaffale che smorza gli acuti del solo fondo continuo (ronzio, tubo, ventola), come nel sito */
+  soften: { on: true, hz: SOFTEN.hz, db: SOFTEN.db },
   /** accensione e spegnimento completi: suona anche il tasto della cornice prima dell'interruttore? */
   powerKey: false,
 };
@@ -109,6 +112,9 @@ function loadProfile(p: Profile) {
 
 // ---------- catena audio ----------
 
+// il fondo continuo: passa dallo scaffale degli acuti, come nel sito
+const AMBIENT: readonly VoiceId[] = ['rete', 'ventola', 'tubo'];
+
 class Rig {
   readonly master: GainNode;
   readonly direct: GainNode;
@@ -116,9 +122,10 @@ class Rig {
   readonly synth: Synth;
   readonly legacy: Legacy;
   private hp: BiquadFilterNode;
-  private lp: BiquadFilterNode;
   private phoneIn: GainNode;
   private dryOut: GainNode;
+  private softMech: BiquadFilterNode;
+  private softDirect: BiquadFilterNode;
   running: Partial<Record<VoiceId, Handle[]>> = {};
   private decoded = new Map<string, AudioBuffer | null>();
 
@@ -128,24 +135,28 @@ class Rig {
   ) {
     this.master = ctx.createGain();
     this.master.gain.value = state.master;
-    // anteprima altoparlante del telefono: passa banda ~300 Hz-6 kHz
+    // anteprima altoparlante del telefono: solo passa alto a 300 Hz; un altoparlante di telefono riproduce il sibilo della ventola a 8 kHz e il fischio di linea, quindi l'anteprima non deve tagliarli
     this.hp = ctx.createBiquadFilter();
     this.hp.type = 'highpass';
     this.hp.frequency.value = 300;
     this.hp.Q.value = 0.7;
-    this.lp = ctx.createBiquadFilter();
-    this.lp.type = 'lowpass';
-    this.lp.frequency.value = 6000;
-    this.lp.Q.value = 0.7;
     this.phoneIn = ctx.createGain();
     this.dryOut = ctx.createGain();
-    this.master.connect(this.phoneIn).connect(this.hp).connect(this.lp).connect(ctx.destination);
+    this.master.connect(this.phoneIn).connect(this.hp).connect(ctx.destination);
     this.master.connect(this.dryOut).connect(ctx.destination);
     this.setPhone(state.phone);
     this.direct = ctx.createGain();
     this.direct.connect(this.master);
     this.case = createCase(ctx, this.master, state.params.cassa);
     this.synth = new Synth(ctx, { mech: this.case.input, direct: this.direct }, seed);
+    // come in audio.ts: uno scaffale per ognuna delle due uscite del fondo continuo
+    this.softMech = ctx.createBiquadFilter();
+    this.softMech.type = 'highshelf';
+    this.softMech.connect(this.case.input);
+    this.softDirect = ctx.createBiquadFilter();
+    this.softDirect.type = 'highshelf';
+    this.softDirect.connect(this.direct);
+    this.setSoften();
     this.legacy = new Legacy(ctx, this.direct);
   }
 
@@ -154,12 +165,43 @@ class Rig {
     this.dryOut.gain.value = on ? 0 : 1;
   }
 
+  /** Applica lo stato dello scaffale: spento, il guadagno è 0 dB (il filtro non fa nulla). */
+  setSoften() {
+    const { on, hz, db } = state.soften;
+    for (const f of [this.softMech, this.softDirect]) {
+      f.frequency.value = hz;
+      f.gain.value = on ? db : 0;
+    }
+  }
+
+  /**
+   * Fa partire una voce del fondo continuo (ronzio, tubo, ventola) attraverso lo scaffale,
+   * come nel sito: le altre voci (relè, tasti, disco) restano sulle uscite dirette.
+   */
+  ambient<T>(start: () => T): T {
+    const bus = this.synth.bus;
+    const { mech, direct } = bus;
+    bus.mech = this.softMech;
+    bus.direct = this.softDirect;
+    try {
+      return start();
+    } finally {
+      bus.mech = mech;
+      bus.direct = direct;
+    }
+  }
+
   keep(v: VoiceId, h: Handle) {
     (this.running[v] ??= []).push(h);
   }
 
+  /** Ferma una voce. Quelle del fondo si fermano dallo scaffale: le scintille del tubo nascono lì, come nel sito. */
   stop(v: VoiceId, at = this.ctx.currentTime) {
-    for (const h of this.running[v] ?? []) h.stop(at);
+    const stopAll = () => {
+      for (const h of this.running[v] ?? []) h.stop(at);
+    };
+    if (AMBIENT.includes(v)) this.ambient(stopAll);
+    else stopAll();
     this.running[v] = [];
   }
 
@@ -411,18 +453,18 @@ async function act(rig: Rig, v: VoiceId, action: string, at: number, source: Sou
       return 0.3;
     case 'tubo':
       if (action === 'off') rig.stop(v, at);
-      else rig.keep(v, s.tube(p, mains(), at));
+      else rig.keep(v, rig.ambient(() => s.tube(p, mains(), at)));
       return p.crackleDur;
     case 'smagnetizzazione':
       s.degauss({ ...p, on: 1 }, mains(), at);
       return p.decay * 4;
     case 'ventola':
       if (action === 'stop') rig.stop(v, at);
-      else rig.keep(v, s.fan(p, mains(), at, action === 'start'));
+      else rig.keep(v, rig.ambient(() => s.fan(p, mains(), at, action === 'start')));
       return p.spinUp;
     case 'rete':
       if (action === 'stop') rig.stop(v, at);
-      else rig.keep(v, s.hum(p, at, action === 'start'));
+      else rig.keep(v, rig.ambient(() => s.hum(p, at, action === 'start')));
       return p.inrushS;
     case 'disco':
       return diskAction(rig, synthDisk(rig), action, at, p);
@@ -830,6 +872,19 @@ function init() {
     state.phone = phone.checked;
     live?.rig.setPhone(state.phone);
   });
+  const softOn = $<HTMLInputElement>('#acuti-attivo');
+  softOn.checked = state.soften.on;
+  const soften = (change: Partial<typeof state.soften>) => {
+    state.soften = { ...state.soften, ...change };
+    live?.rig.setSoften();
+  };
+  softOn.addEventListener('change', () => soften({ on: softOn.checked }));
+  softOn
+    .closest('label')!
+    .after(
+      slider('acuti: da (Hz)', 1000, 12000, 100, state.soften.hz, (hz) => soften({ hz })),
+      slider('acuti: guadagno (dB)', -24, 0, 0.5, state.soften.db, (db) => soften({ db })),
+    );
   $('#accendi').addEventListener('click', () => {
     const r = rig();
     for (const v of VOICES) r.stop(v);

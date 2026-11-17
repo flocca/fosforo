@@ -15,6 +15,7 @@ import { createScreen, isDesktop, type Screen } from './screen';
 import { createShell, PHOSPHORS, type Phosphor, type Terminal } from './shell';
 import * as prefs from './prefs';
 import { createChips, isCoarsePointer } from './touch';
+import { deviceLevel, nextSetting, type SoundLevel, type SoundSetting } from './volume';
 
 type SiteIndex = {
   root: FsNode;
@@ -26,6 +27,12 @@ type SiteIndex = {
 // Il contesto audio nasce solo dentro un gesto: clic sull'interruttore, il tasto del suono
 // su un link già acceso, o il primo tocco o tasto sulla 404. Prima di allora `seek` non fa niente.
 const audio = createAudio();
+// Livello predefinito del dispositivo: sul touch più basso. Vale finché il visitatore non sceglie.
+const deviceSoundLevel: SoundLevel = deviceLevel(isCoarsePointer());
+// Impostazione del visitatore (salvata o predefinita); da spento il livello resta quello del dispositivo.
+let soundSetting: SoundSetting = prefs.getSoundSetting() ?? deviceSoundLevel;
+audio.setLevel(soundSetting === 'spento' ? deviceSoundLevel : soundSetting);
+audio.setMuted(soundSetting === 'spento');
 // Link già acceso (il visitatore ha acceso il monitor oggi): l'audio aspetta il tasto del
 // suono (o il comando `suono`), nessun altro gesto lo fa partire. Finché aspetta, spia e
 // tasto si mostrano spenti. Lo spegnimento chiude l'attesa.
@@ -64,34 +71,56 @@ function applyPhosphor(p: Phosphor) {
   if (button) button.title = `Fosfori: ${p}`;
 }
 
-// Il suono come lo vede il visitatore: spento se è la sua preferenza o se l'audio aspetta il tasto.
-const soundShownMuted = () => soundWaits || audio.muted;
+// Il suono come lo vede il visitatore: spento se l'audio aspetta il tasto, altrimenti la sua impostazione.
+const soundShown = (): SoundSetting => (soundWaits ? 'spento' : soundSetting);
 
-// Stesso percorso del comando `suono` e del tasto del suono: spia e tasto mostrano la
-// preferenza del visitatore, anche quando l'audio non è ancora partito (a monitor spento,
+// Stesso percorso del comando `suono` e del tasto del suono: icona, spia e tasto mostrano
+// l'impostazione del visitatore, anche quando l'audio non è ancora partito (a monitor spento,
 // sulla 404); su un link già acceso, spenti finché l'audio aspetta il tasto.
 function showSound() {
-  const muted = soundShownMuted();
-  // da qui la spia la decide il client, non più lo script in testa
-  document.documentElement.classList.remove('sound-pending');
-  document.querySelector('.sound-led')?.classList.toggle('is-on', !muted);
+  const shown = soundShown();
+  const html = document.documentElement;
+  // da qui icona e spia le decide il client, non più lo script in testa
+  html.dataset.suono = shown;
+  html.classList.remove('sound-pending');
+  document.querySelector('.sound-led')?.classList.toggle('is-on', shown !== 'spento');
   const button = document.querySelector<HTMLButtonElement>('.sound-button');
   if (button) {
-    const name = muted ? 'Suono spento' : 'Suono acceso';
+    const name = `Suono ${shown}`;
     button.setAttribute('aria-label', name);
     button.title = name;
-    button.setAttribute('aria-pressed', String(!muted));
+    button.setAttribute('aria-pressed', String(shown !== 'spento'));
   }
 }
 
-// Accendere il suono mentre l'audio aspetta il tasto lo fa partire: ventola e ronzio.
-function applySound(muted: boolean) {
-  const starts = soundWaits && !muted;
-  if (starts) soundWaits = false;
-  audio.setMuted(muted);
-  prefs.setSoundOff(muted);
-  if (starts) audio.spinUp();
+// Scelta esplicita (tasto, chip, comando): si salva. Un livello mentre l'audio aspetta il
+// tasto lo fa partire: ventola e ronzio.
+function chooseSound(s: SoundSetting) {
+  soundSetting = s;
+  if (s === 'spento') audio.setMuted(true);
+  else {
+    const starts = soundWaits;
+    soundWaits = false;
+    audio.setLevel(s);
+    // già acceso, la rampa di `setLevel` porta al nuovo livello
+    if (audio.muted) audio.setMuted(false);
+    if (starts) audio.spinUp();
+  }
+  prefs.setSoundSetting(s);
   showSound();
+}
+
+// Una pressione del tasto (o `suono` senza argomento). Su un link già acceso la prima fa
+// partire l'audio all'impostazione del visitatore, senza cambiarla e senza salvare;
+// con l'impostazione spento il tasto passa al livello seguente come sempre.
+function stepSound(): SoundSetting {
+  if (soundWaits && soundSetting !== 'spento') {
+    // l'audio non è muto (l'impostazione è un livello): basta farlo partire
+    soundWaits = false;
+    audio.spinUp();
+    showSound();
+  } else chooseSound(nextSetting(soundShown()));
+  return soundShown();
 }
 
 // Lo spegnimento chiude l'attesa: a monitor spento spia e tasto mostrano la preferenza, come
@@ -108,15 +137,16 @@ function initSoundButton() {
   if (!button) return;
   showSound();
   button.disabled = false;
-  // Spegnendo, pressione e rilascio si sentono prima che il suono vada via. Riaccendendo,
-  // il tasto è sceso a suono spento: dopo si sente il rilascio (o tutto il tasto, con Invio).
+  // Spegnendo o cambiando livello, pressione e rilascio si sentono prima della rampa, al
+  // livello di prima. Riaccendendo, il tasto è sceso a suono spento: dopo si sente il
+  // rilascio (o tutto il tasto, con Invio).
   // Se il tasto fa partire l'audio, la pressione resta muta (il contesto non c'era ancora)
   // e anche il rilascio, finché la registrazione dei tasti non è pronta.
   bezelKey(button, audio, (held) => {
-    const muting = !soundShownMuted();
-    if (muting && !held) audio.press();
-    applySound(muting);
-    if (!muting) {
+    const wasOn = soundShown() !== 'spento';
+    if (wasOn && !held) audio.press();
+    stepSound();
+    if (!wasOn) {
       if (held) audio.keyUp();
       else audio.press();
     }
@@ -306,10 +336,9 @@ async function main() {
     setPhosphor: applyPhosphor,
     sound: {
       // come il tasto: mentre l'audio aspetta, `suono` lo fa partire
-      get muted() {
-        return soundShownMuted();
-      },
-      setMuted: applySound,
+      step: stepSound,
+      set: chooseSound,
+      deviceLevel: deviceSoundLevel,
     },
     // Gira dentro la coda (è un comando): lo spegnimento si fa qui, senza rimettersi in coda.
     async shutdown() {
