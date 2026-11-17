@@ -335,6 +335,17 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
     motor = { src, g };
   }
 
+  // Porta il guadagno generale a `to` con una rampa che parte a `from`. Il valore si legge
+  // prima di cancellare: una rampa ancora in corso resta dov'è fino a `from`, senza tornare
+  // al punto di partenza in un browser che ricalcola `value` dalla programmazione rimasta.
+  function rampMaster(t: number, from: number, to: number) {
+    const v = master.gain.value;
+    master.gain.cancelScheduledValues(t);
+    master.gain.setValueAtTime(v, t);
+    master.gain.setValueAtTime(v, from);
+    master.gain.linearRampToValueAtTime(to, from + MUTE_RAMP_S);
+  }
+
   function motorOff() {
     if (!motor || !ctx) return;
     const t = ctx.currentTime;
@@ -541,11 +552,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       const t = c.currentTime;
       // spegnendo, il tasto appena premuto finisce di suonare
       const from = m ? Math.max(t, quietAt) : t;
-      master.gain.cancelScheduledValues(t);
-      // una rampa ancora in corso: il valore resta dov'è fino a `from`, senza tornare indietro
-      master.gain.setValueAtTime(master.gain.value, t);
-      master.gain.setValueAtTime(master.gain.value, from);
-      master.gain.linearRampToValueAtTime(m ? 0 : VOLUME[level], from + MUTE_RAMP_S);
+      rampMaster(t, from, m ? 0 : VOLUME[level]);
       if (m) {
         motorOff();
         // da muto il contesto si ferma, così non consuma batteria: dopo che è finito
@@ -562,12 +569,7 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       if (!ctx || muted) return;
       const t = ctx.currentTime;
       // come lo spegnimento: il tasto appena premuto finisce di suonare al livello di prima
-      const from = Math.max(t, quietAt);
-      master.gain.cancelScheduledValues(t);
-      // una rampa ancora in corso: il valore resta dov'è fino a `from`, senza tornare indietro
-      master.gain.setValueAtTime(master.gain.value, t);
-      master.gain.setValueAtTime(master.gain.value, from);
-      master.gain.linearRampToValueAtTime(VOLUME[level], from + MUTE_RAMP_S);
+      rampMaster(t, Math.max(t, quietAt), VOLUME[level]);
     },
 
     suspend() {

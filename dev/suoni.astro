@@ -23,12 +23,7 @@ import '@fontsource/fira-mono/400.css';
           ><span>volume</span><input id="volume" type="range" min="0" max="1" step="0.01" /><output id="volume-valore">0.5</output></label
         >
         <label class="spunta"><input id="acuti-attivo" type="checkbox" /> smorza gli acuti del fondo (ronzio, tubo, ventola)</label>
-        <label class="riga"
-          ><span>acuti: da (Hz)</span><input id="acuti-hz" type="range" min="1000" max="12000" step="100" /><output id="acuti-hz-valore"></output></label
-        >
-        <label class="riga"
-          ><span>acuti: guadagno (dB)</span><input id="acuti-db" type="range" min="-24" max="0" step="0.5" /><output id="acuti-db-valore"></output></label
-        >
+        <!-- i cursori degli acuti li aggiunge board.ts subito dopo la spunta, con slider() -->
         <label class="spunta"><input id="telefono" type="checkbox" /> anteprima altoparlante telefono (passa alto 300 Hz)</label>
       </div>
       <p id="descrizione" class="nota"></p>

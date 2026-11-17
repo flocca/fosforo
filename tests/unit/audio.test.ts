@@ -293,6 +293,29 @@ describe('createAudio', () => {
     expect(master()).toBe(0.18);
   });
 
+  it('cambiando livello a metà rampa si riparte dal valore raggiunto, non da quello di partenza', () => {
+    const { audio, contexts } = setup();
+    audio.powerOn();
+    const c = contexts[0];
+    const gain = (c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam }).gain;
+    // un browser che ricalcola `value` dalla programmazione rimasta: cancellata la rampa,
+    // torna al punto di partenza (0,5) invece di restare al valore raggiunto (0,34)
+    gain.value = 0.34;
+    gain.cancelScheduledValues = function () {
+      this.value = 0.5;
+      return this;
+    };
+    const anchors: number[] = [];
+    const set = gain.setValueAtTime.bind(gain);
+    gain.setValueAtTime = (v: number) => {
+      anchors.push(v);
+      return set(v);
+    };
+    audio.setLevel('basso');
+    audio.setMuted(true);
+    expect(anchors.slice(0, 2)).toEqual([0.34, 0.34]);
+  });
+
   it('il fondo passa dagli acuti smussati, una coppia per sessione', async () => {
     const { audio, contexts } = setup();
     const shelves = () =>
@@ -308,6 +331,16 @@ describe('createAudio', () => {
     const targets = shelves().map((n) => n.outputs[0] as FakeNode);
     expect(targets.filter((t) => t.outputs.includes(master))).toHaveLength(1);
     expect(new Set(targets).size).toBe(2);
+    // ogni scaffale riceve da un guadagno della sessione che esce solo lì (nessuna scorciatoia),
+    // e in quel guadagno suona almeno una voce del fondo
+    const nodes = contexts[0].nodes;
+    for (const s of shelves()) {
+      const feeders = nodes.filter((n) => n.outputs.includes(s));
+      expect(feeders).toHaveLength(1);
+      expect(feeders[0].kind).toBe('gain');
+      expect(feeders[0].outputs).toEqual([s]);
+      expect(nodes.some((n) => n.outputs.includes(feeders[0]))).toBe(true);
+    }
     audio.powerOff();
     audio.powerOn();
     await flush();

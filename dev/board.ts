@@ -172,9 +172,9 @@ class Rig {
   }
 
   /**
-   * Fa partire una voce del fondo continuo (ronzio, tubo, ventola) attraverso lo scaffale,
-   * come nel sito: le altre voci (relè, tasti, disco) restano sulle uscite dirette.
-   * Le scintille allo spegnimento del tubo escono dalle uscite dirette, senza scaffale.
+   * Fa partire (o spegne, per le scintille del tubo) una voce del fondo continuo (ronzio,
+   * tubo, ventola) attraverso lo scaffale, come nel sito: le altre voci (relè, tasti, disco)
+   * restano sulle uscite dirette.
    */
   ambient<T>(start: () => T): T {
     const bus = this.synth.bus;
@@ -445,7 +445,8 @@ async function act(rig: Rig, v: VoiceId, action: string, at: number, source: Sou
       s.relay(p, at, action === 'off' ? 'off' : 'on');
       return 0.3;
     case 'tubo':
-      if (action === 'off') rig.stop(v, at);
+      // anche lo spegnimento passa dallo scaffale: le scintille nascono sull'uscita del momento
+      if (action === 'off') rig.ambient(() => rig.stop(v, at));
       else rig.keep(v, rig.ambient(() => s.tube(p, mains(), at)));
       return p.crackleDur;
     case 'smagnetizzazione':
@@ -866,20 +867,18 @@ function init() {
     live?.rig.setPhone(state.phone);
   });
   const softOn = $<HTMLInputElement>('#acuti-attivo');
-  const softHz = $<HTMLInputElement>('#acuti-hz');
-  const softDb = $<HTMLInputElement>('#acuti-db');
   softOn.checked = state.soften.on;
-  softHz.value = String(state.soften.hz);
-  softDb.value = String(state.soften.db);
-  $('#acuti-hz-valore').textContent = fmt(state.soften.hz);
-  $('#acuti-db-valore').textContent = fmt(state.soften.db);
-  const softChange = () => {
-    state.soften = { on: softOn.checked, hz: Number(softHz.value), db: Number(softDb.value) };
-    $('#acuti-hz-valore').textContent = fmt(state.soften.hz);
-    $('#acuti-db-valore').textContent = fmt(state.soften.db);
+  const soften = (change: Partial<typeof state.soften>) => {
+    state.soften = { ...state.soften, ...change };
     live?.rig.setSoften();
   };
-  for (const i of [softOn, softHz, softDb]) i.addEventListener('input', softChange);
+  softOn.addEventListener('change', () => soften({ on: softOn.checked }));
+  softOn
+    .closest('label')!
+    .after(
+      slider('acuti: da (Hz)', 1000, 12000, 100, state.soften.hz, (hz) => soften({ hz })),
+      slider('acuti: guadagno (dB)', -24, 0, 0.5, state.soften.db, (db) => soften({ db })),
+    );
   $('#accendi').addEventListener('click', () => {
     const r = rig();
     for (const v of VOICES) r.stop(v);

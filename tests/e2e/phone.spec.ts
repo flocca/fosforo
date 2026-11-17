@@ -64,6 +64,14 @@ test('telefono: icona a una onda dal primo disegno', async ({ page }) => {
   expect(await page.locator('.sound-button .wave-2').evaluate((el) => getComputedStyle(el).display)).toBe('none');
 });
 
+test('telefono: senza il client lo script in testa mostra già una onda', async ({ page }) => {
+  // solo lo script in testa: il modulo del client non arriva
+  await page.route('**/_astro/*.js', (r) => r.abort());
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-suono', 'basso');
+  expect(await page.locator('.sound-button .wave-2').evaluate((el) => getComputedStyle(el).display)).toBe('none');
+});
+
 test('"scrivi" apre la tastiera, toccare lo schermo no', async ({ page }) => {
   await powerOn(page);
   await page.locator('#screen .term-out').tap({ position: { x: 20, y: 5 } });

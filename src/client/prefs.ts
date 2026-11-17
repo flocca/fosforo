@@ -16,10 +16,9 @@ function read(key: string): string | null {
   }
 }
 
-function write(key: string, value: string | null) {
+function write(key: string, value: string) {
   try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
+    localStorage.setItem(key, value);
   } catch {
     // storage non disponibile: la scelta vale solo per questa visita
   }
