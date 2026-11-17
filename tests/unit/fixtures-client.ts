@@ -2,6 +2,7 @@
 import type { Block } from '../../src/lib/blocks';
 import type { FsNode } from '../../src/lib/fs-tree';
 import type { Phosphor, Terminal } from '../../src/client/shell';
+import { nextSetting, type SoundLevel, type SoundSetting } from '../../src/client/volume';
 
 export const root: FsNode = {
   name: '',
@@ -30,11 +31,12 @@ export const root: FsNode = {
   ],
 };
 
-export type FakeTerminal = Terminal & {
+export type FakeTerminal = Omit<Terminal, 'sound'> & {
+  sound: Terminal['sound'] & { deviceLevel: SoundLevel }; // scrivibile nei test
   printed: Block[][];
   navigations: [string, string][];
   phosphors: Phosphor[];
-  mutes: boolean[];
+  sounds: string[]; // chiamate a `sound`: 'step' oppure 'set <impostazione>'
   seeks: number[];
   clears: number;
   reboots: number;
@@ -43,11 +45,12 @@ export type FakeTerminal = Terminal & {
 };
 
 export function fakeTerminal(): FakeTerminal {
+  let setting: SoundSetting = 'medio';
   const t: FakeTerminal = {
     printed: [],
     navigations: [],
     phosphors: [],
-    mutes: [],
+    sounds: [],
     seeks: [],
     clears: 0,
     reboots: 0,
@@ -77,10 +80,15 @@ export function fakeTerminal(): FakeTerminal {
       t.phosphor = p;
     },
     sound: {
-      muted: false,
-      setMuted(m) {
-        t.mutes.push(m);
-        t.sound.muted = m;
+      deviceLevel: 'medio',
+      step() {
+        t.sounds.push('step');
+        setting = nextSetting(setting);
+        return setting;
+      },
+      set(s) {
+        t.sounds.push(`set ${s}`);
+        setting = s;
       },
     },
     reboot() {

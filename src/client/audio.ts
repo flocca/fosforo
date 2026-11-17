@@ -559,9 +559,11 @@ export function createAudio(ctxFactory: () => AudioContext = () => new AudioCont
       level = l;
       if (!ctx || muted) return;
       const t = ctx.currentTime;
+      // come lo spegnimento: il tasto appena premuto finisce di suonare al livello di prima
+      const from = Math.max(t, quietAt);
       master.gain.cancelScheduledValues(t);
-      master.gain.setValueAtTime(master.gain.value, t);
-      master.gain.linearRampToValueAtTime(VOLUME[level], t + MUTE_RAMP_S);
+      master.gain.setValueAtTime(master.gain.value, from);
+      master.gain.linearRampToValueAtTime(VOLUME[level], from + MUTE_RAMP_S);
     },
 
     suspend() {

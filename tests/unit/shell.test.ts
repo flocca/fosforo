@@ -185,19 +185,35 @@ describe('shell', () => {
     expect(t.seeks).toEqual([]);
   });
 
-  it('suono senza argomento alterna', async () => {
+  it('suono senza argomento fa come il tasto', async () => {
     const t = fakeTerminal();
     const shell = createShell(root, t);
     await shell.run('suono');
     await shell.run('suono');
-    expect(t.mutes).toEqual([true, false]);
-    expect(t.text()).toEqual(['Suono spento.', 'Suono acceso.']);
+    expect(t.sounds).toEqual(['step', 'step']);
+    expect(t.text()).toEqual(['Suono basso.', 'Suono spento.']);
   });
 
-  it('suono acceso e spento', async () => {
-    const t = await run('suono spento');
-    expect(t.mutes).toEqual([true]);
-    expect(t.text()).toEqual(['Suono spento.']);
+  it('suono con un livello', async () => {
+    for (const s of ['alto', 'medio', 'basso', 'spento']) {
+      const t = await run(`suono ${s}`);
+      expect(t.sounds).toEqual([`set ${s}`]);
+      expect(t.text()).toEqual([`Suono ${s}.`]);
+    }
+  });
+
+  it('suono acceso porta al livello del dispositivo', async () => {
+    const t = await run('suono acceso', (t) => (t.sound.deviceLevel = 'basso'));
+    expect(t.sounds).toEqual(['set basso']);
+    expect(t.text()).toEqual(['Suono basso.']);
+  });
+
+  it('suono con un argomento sbagliato', async () => {
+    const t = await run('suono boh && ls');
+    expect(t.sounds).toEqual([]);
+    expect(t.text()).toEqual(['suono: boh: scegli tra alto, medio, basso, spento.']);
+    const spans = (t.printed[0][0] as { spans: { cmd?: string }[] }).spans;
+    expect(spans.map((s) => s.cmd).filter(Boolean)).toEqual(['suono alto', 'suono medio', 'suono basso', 'suono spento']);
   });
 
   it('fosfori ambra', async () => {
@@ -229,6 +245,7 @@ describe('shell', () => {
     expect(names.map((s) => s?.cmd)).toEqual(['ls', 'cd', 'cat', 'pwd', 'clear', 'suono', 'fosfori', 'reboot', 'shutdown', 'help']);
     expect(t.text()[0]).toMatch(/^ls\s+elenca i file$/);
     expect(t.text()).toContain(t.text().find((l) => l.endsWith('cambia colore: verde, ambra, bianco')));
+    expect(t.text()).toContainEqual(expect.stringMatching(/^suono\s+regola il suono: alto, medio, basso, spento$/));
   });
 
   it('riga vuota: nessun output', async () => {

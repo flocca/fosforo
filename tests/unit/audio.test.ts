@@ -409,6 +409,19 @@ describe('createAudio', () => {
     expect(master()).toBe(0);
   });
 
+  it('cambiando livello subito dopo il tasto, il tasto finisce di suonare al livello di prima', async () => {
+    const { audio, contexts, master } = setup();
+    audio.powerOn();
+    await flush();
+    const c = contexts[0];
+    audio.press();
+    const g = c.nodes.find((n) => n.outputs.includes(c.destination)) as unknown as { gain: FakeParam };
+    const spy = vi.spyOn(g.gain, 'setValueAtTime');
+    audio.setLevel('basso');
+    expect((spy.mock.calls[0] as unknown as number[])[1]).toBeGreaterThan(c.currentTime);
+    expect(master()).toBe(0.063);
+  });
+
   it('seek dice per quanti secondi lavora la testina: 0 se non suona', async () => {
     const { audio, contexts } = setup();
     expect(audio.seek(2)).toBe(0);

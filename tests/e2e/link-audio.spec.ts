@@ -16,9 +16,9 @@ async function expectShownOff(page: Page) {
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'false');
 }
 
-async function expectShownOn(page: Page) {
+async function expectShownOn(page: Page, level: string) {
   await expect(soundLed(page)).toHaveClass(/is-on/);
-  await expect(soundButton(page)).toHaveAccessibleName('Suono acceso');
+  await expect(soundButton(page)).toHaveAccessibleName(`Suono ${level}`);
   await expect(soundButton(page)).toHaveAttribute('aria-pressed', 'true');
 }
 
@@ -43,20 +43,23 @@ test('preferenza accesa: il tasto fa partire l\'audio e non salva niente', async
   await page.goto(SONG);
   await expect(prompt(page)).toBeFocused();
   await soundButton(page).click();
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
   expect(await audioContexts(page)).toBe(1);
   expect(await savedSound(page)).toBeNull();
-  // dopo la partenza il tasto alterna come sempre
+  // dopo la partenza il tasto passa al livello seguente come sempre
+  await soundButton(page).click();
+  await expectShownOn(page, 'basso');
+  expect(await savedSound(page)).toBe('basso');
   await soundButton(page).click();
   await expectShownOff(page);
   expect(await savedSound(page)).toBe('spento');
   await soundButton(page).click();
-  await expectShownOn(page);
-  expect(await savedSound(page)).toBeNull();
+  await expectShownOn(page, 'alto');
+  expect(await savedSound(page)).toBe('alto');
   expect(await audioContexts(page)).toBe(1);
 });
 
-test('preferenza spenta: il tasto fa partire l\'audio e salva acceso', async ({ page }) => {
+test('preferenza spenta: il tasto fa partire l\'audio e salva alto', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'spento'));
   await page.goto(SONG);
   await expect(prompt(page)).toBeFocused();
@@ -64,9 +67,9 @@ test('preferenza spenta: il tasto fa partire l\'audio e salva acceso', async ({ 
   await page.keyboard.press('x');
   expect(await audioContexts(page)).toBe(0);
   await soundButton(page).click();
-  await expectShownOn(page);
+  await expectShownOn(page, 'alto');
   expect(await audioContexts(page)).toBe(1);
-  expect(await savedSound(page)).toBeNull();
+  expect(await savedSound(page)).toBe('alto');
 });
 
 test('il tasto funziona anche da tastiera', async ({ page }) => {
@@ -74,7 +77,7 @@ test('il tasto funziona anche da tastiera', async ({ page }) => {
   await expect(prompt(page)).toBeFocused();
   await soundButton(page).focus();
   await page.keyboard.press(' ');
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
   expect(await audioContexts(page)).toBe(1);
 });
 
@@ -90,9 +93,9 @@ test('il comando suono si comporta come il tasto', async ({ page }) => {
 
   await prompt(page).fill('suono');
   await prompt(page).press('Enter');
-  await expect(output(page)).toContainText('Suono acceso.');
-  await expectShownOn(page);
-  expect(await savedSound(page)).toBeNull();
+  await expect(output(page)).toContainText('Suono alto.');
+  await expectShownOn(page, 'alto');
+  expect(await savedSound(page)).toBe('alto');
   expect(await audioContexts(page)).toBe(1);
 });
 
@@ -105,7 +108,7 @@ test('spento e riacceso dall\'interruttore: l\'audio parte con l\'accensione', a
   await expect(powerButton(page)).toBeEnabled();
   await powerButton(page).click();
   expect(await audioContexts(page)).toBe(1);
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
 });
 
 test('a monitor spento il tasto del suono non fa partire l\'audio, come sulla home', async ({ page }) => {
@@ -115,17 +118,17 @@ test('a monitor spento il tasto del suono non fa partire l\'audio, come sulla ho
   await prompt(page).press('Enter');
   await expect(page.locator('.screen')).toHaveClass(/is-off/);
   // spento, spia e tasto mostrano la preferenza come sulla home
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
   await soundButton(page).click();
-  await expectShownOff(page);
-  expect(await savedSound(page)).toBe('spento');
+  await expectShownOn(page, 'basso');
+  expect(await savedSound(page)).toBe('basso');
   expect(await audioContexts(page)).toBe(0);
 });
 
 test('la 404 fa partire l\'audio al primo gesto', async ({ page }) => {
   await page.goto('/non-esiste');
   await expect(prompt(page)).toBeFocused();
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
   expect(await audioContexts(page)).toBe(0);
   await page.keyboard.press('x');
   expect(await audioContexts(page)).toBe(1);
@@ -133,12 +136,13 @@ test('la 404 fa partire l\'audio al primo gesto', async ({ page }) => {
 
 // Il primo disegno lo decide lo script in testa: senza il client resta quello.
 const ledLit = (page: Page) => page.locator('.sound-led').evaluate((el) => getComputedStyle(el).backgroundImage.includes('gradient'));
-// l'icona del tasto: onde (acceso) o croce (spento), una sola visibile
-const iconShown = (page: Page) =>
-  page.locator('.sound-button').evaluate((b) => {
-    const shown = (sel: string) => getComputedStyle(b.querySelector(sel)!).display !== 'none';
-    return shown('.waves') && !shown('.cross') ? 'acceso' : shown('.cross') && !shown('.waves') ? 'spento' : 'misto';
-  });
+// l'icona del tasto: il suono mostrato (spento o un livello), come lo dice data-suono
+const iconShown = (page: Page) => page.evaluate(() => document.documentElement.dataset.suono);
+// i segni visibili dell'icona: le onde (una per livello) e la croce
+const iconMarks = (page: Page) =>
+  page.locator('.sound-button').evaluate((b) =>
+    ['.wave-1', '.wave-2', '.wave-3', '.cross'].filter((sel) => getComputedStyle(b.querySelector(sel)!).display !== 'none'),
+  );
 
 test.describe('prima del client', () => {
   test.beforeEach(async ({ page }) => {
@@ -149,6 +153,7 @@ test.describe('prima del client', () => {
     await page.goto(SONG);
     expect(await ledLit(page)).toBe(false);
     expect(await iconShown(page)).toBe('spento');
+    expect(await iconMarks(page)).toEqual(['.cross']);
   });
 
   test('preferenza spenta: la spia del suono è spenta dal primo disegno, anche sulla home', async ({ page }) => {
@@ -161,11 +166,19 @@ test.describe('prima del client', () => {
   test('home e 404 con il suono acceso: la spia è accesa', async ({ page }) => {
     await page.goto('/');
     expect(await ledLit(page)).toBe(true);
-    expect(await iconShown(page)).toBe('acceso');
+    expect(await iconShown(page)).toBe('medio');
+    expect(await iconMarks(page)).toEqual(['.wave-1', '.wave-2']);
     await page.goto('/non-esiste');
     expect(await ledLit(page)).toBe(true);
-    expect(await iconShown(page)).toBe('acceso');
+    expect(await iconShown(page)).toBe('medio');
   });
+});
+
+test('un valore vecchio o sconosciuto vale il livello del dispositivo', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('fosforo.suono', 'boh'));
+  await page.goto('/');
+  await expectShownOn(page, 'medio');
+  expect(await iconShown(page)).toBe('medio');
 });
 
 test.describe('primo giorno', () => {
@@ -175,7 +188,7 @@ test.describe('primo giorno', () => {
     await page.route('**/_astro/*.js', (r) => r.abort());
     await page.goto(SONG);
     expect(await ledLit(page)).toBe(true);
-    expect(await iconShown(page)).toBe('acceso');
+    expect(await iconShown(page)).toBe('medio');
   });
 });
 
@@ -185,9 +198,9 @@ test('con il client la spia segue lo stato: il segno dello script in testa non r
   await expect(page.locator('html')).not.toHaveClass(/sound-pending/);
   expect(await iconShown(page)).toBe('spento');
   await soundButton(page).click();
-  await expectShownOn(page);
+  await expectShownOn(page, 'medio');
   expect(await ledLit(page)).toBe(true);
-  expect(await iconShown(page)).toBe('acceso');
+  expect(await iconShown(page)).toBe('medio');
 });
 
 test.describe('primo giorno con l\'indice in ritardo', () => {
@@ -201,7 +214,7 @@ test.describe('primo giorno con l\'indice in ritardo', () => {
     await page.goto(SONG);
     await expect(prompt(page)).toBeVisible({ timeout: 8000 });
     await expect(page.locator('.screen')).not.toHaveClass(/is-off/);
-    await expectShownOn(page);
+    await expectShownOn(page, 'medio');
     expect(await audioContexts(page)).toBe(0);
     await page.keyboard.press('x');
     expect(await audioContexts(page)).toBe(1);
@@ -218,7 +231,7 @@ test.describe('telefono', () => {
     expect(await audioContexts(page)).toBe(0);
     await expectShownOff(page);
     await soundButton(page).tap();
-    await expectShownOn(page);
+    await expectShownOn(page, 'basso');
     expect(await audioContexts(page)).toBe(1);
   });
 });

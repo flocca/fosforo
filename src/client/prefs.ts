@@ -34,15 +34,6 @@ export function setPhosphor(p: Phosphor) {
   write(KEY_PHOSPHOR, p);
 }
 
-export function isSoundOff(): boolean {
-  return read(KEY_SOUND) === 'spento';
-}
-
-// Si salva solo "spento"; il suono acceso è l'assenza della chiave.
-export function setSoundOff(off: boolean) {
-  write(KEY_SOUND, off ? 'spento' : null);
-}
-
 // null: il visitatore non ha mai scelto, oppure il valore salvato non è riconosciuto.
 export function getSoundSetting(): SoundSetting | null {
   const v = read(KEY_SOUND);

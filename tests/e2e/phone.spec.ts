@@ -36,9 +36,32 @@ test('accensione, comandi rapidi e navigazione a tocchi', async ({ page }) => {
   await expect(page.locator('#screen .term-prompt')).toContainText('~ $'); // dalla canzone si sale alla radice
   await chip(page, 'help').tap();
   await expect(output(page)).toContainText('questo elenco');
+  // sul telefono il suono parte basso: un passo e si spegne
+  await expect(page.getByRole('button', { name: 'Suono basso' })).toBeVisible();
   await chip(page, 'suono').tap();
   await expect(page.getByRole('button', { name: 'Suono spento' })).toBeVisible();
   await expect(prompt(page)).not.toBeFocused();
+});
+
+test('telefono: icona a una onda dal primo disegno', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { suoni: string[] };
+    w.suoni = [];
+    // prima del parser non c'è ancora <html>: si osserva il documento intero; i valori
+    // intermedi di un gruppo di modifiche restano in oldValue
+    new MutationObserver((records) => {
+      for (const r of records) if (r.oldValue) w.suoni.push(r.oldValue);
+      const v = document.documentElement.dataset.suono;
+      if (v) w.suoni.push(v);
+    }).observe(document, { attributes: true, attributeOldValue: true, subtree: true, attributeFilter: ['data-suono'] });
+  });
+  await page.goto('/');
+  await page.waitForLoadState('load');
+  await expect(page.getByRole('button', { name: 'Suono basso' })).toBeEnabled();
+  const seen = await page.evaluate(() => (window as unknown as { suoni: string[] }).suoni);
+  expect(seen.length).toBeGreaterThan(0);
+  expect(new Set(seen)).toEqual(new Set(['basso']));
+  expect(await page.locator('.sound-button .wave-2').evaluate((el) => getComputedStyle(el).display)).toBe('none');
 });
 
 test('"scrivi" apre la tastiera, toccare lo schermo no', async ({ page }) => {

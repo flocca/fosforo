@@ -22,7 +22,7 @@ test('il monitor ha interruttore, tasto del suono e tre spie', async ({ page }) 
   await expect(page.locator('.panel-led[aria-hidden="true"]')).toHaveCount(3);
   await expect(page.locator('.sound-state, .led')).toHaveCount(0);
   await expect(page.locator('.sound-led')).toHaveClass(/is-on/);
-  await expect(page.getByRole('button', { name: 'Suono acceso' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Suono medio' })).toBeVisible();
   await expect(page.locator('.screen #screen .term')).toHaveCount(1);
 });
 
@@ -76,7 +76,7 @@ test.describe('telefono a 320 px: pannello', () => {
       expect(Math.abs(led!.x + led!.width / 2 - (boxes[i].x + boxes[i].width / 2))).toBeLessThan(1.5);
     }
     await sound.click();
-    await expect(page.getByRole('button', { name: 'Suono acceso' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Suono medio' })).toBeVisible();
     const { sw, cw } = await page.evaluate(() => ({
       sw: document.documentElement.scrollWidth,
       cw: document.documentElement.clientWidth,
